@@ -370,9 +370,9 @@ release-postgres-operator-image-labels:
 
 # Default values if not already set
 NAME ?= percona-postgresql-operator
-VERSION ?= $(shell git rev-parse --abbrev-ref HEAD | sed -e 's^/^-^g; s^[.]^-^g;' | tr '[:upper:]' '[:lower:]')
+VERSION ?= latest
 ROOT_REPO ?= ${PWD}
-IMAGE_TAG_BASE ?= perconalab/$(NAME)
+IMAGE_TAG_BASE ?= benwaffle/$(NAME)
 IMAGE ?= $(IMAGE_TAG_BASE):$(VERSION)
 PGO_VERSION ?= $(shell git describe --tags)
 
