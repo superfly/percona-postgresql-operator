@@ -358,7 +358,15 @@ chmod +x /tmp/pg_rewind_tde.sh
 			return strings.Join([]string{pg_rewind_override, tablespaceCmd}, "\n")
 		}(),
 
-		`chmod 0600 /etc/pgbackrest/server/server-tls.key`,
+		`chmod 0600 ` + strings.Join([]string{
+			"/etc/pgbackrest/server/server-tls.key",
+			"/pgconf/tls/tls.key",
+			"/pgconf/tls/tls.crt",
+			"/pgconf/tls/ca.crt",
+			"/pgconf/replication/tls.crt",
+			"/pgconf/replication/tls.key",
+			"/pgconf/replication/ca.crt",
+		}, " "),
 
 		// When the data directory is empty, there's nothing more to do.
 		`[ -f "${postgres_data_directory}/PG_VERSION" ] || flyInitDone`,
