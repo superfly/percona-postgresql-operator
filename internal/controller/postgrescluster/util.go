@@ -250,7 +250,7 @@ func addNSSWrapper(image string, imagePullPolicy corev1.PullPolicy, template *co
 	}
 
 	container := corev1.Container{
-		Command:         []string{"bash", "-c", nssWrapperCmd},
+		Command:         []string{"bash", "-xc", nssWrapperCmd},
 		Image:           image,
 		ImagePullPolicy: imagePullPolicy,
 		Name:            naming.ContainerNSSWrapperInit,

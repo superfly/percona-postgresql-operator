@@ -40,6 +40,8 @@ const (
 		` stat -Lc '%A %4u %4g %n' "$@";` +
 		` }`
 
+	flyInitDone = `flyInitDone() { echo "pg init done"; touch /fly-init/pg-ready; sleep inf; }`
+
 	// bashRecreateDirectory is a Bash function that moves the contents of an
 	// existing directory into a newly created directory of the same name.
 	bashRecreateDirectory = `
@@ -173,8 +175,6 @@ func reloadCommand(name string) []string {
 	// - https://unix.stackexchange.com/a/407383
 
 	script := fmt.Sprintf(`
-%s
-
 declare -r directory=%q
 exec {fd}<> <(:)
 while read -r -t 5 -u "${fd}" || true; do
@@ -187,7 +187,6 @@ while read -r -t 5 -u "${fd}" || true; do
   fi
 done
 `,
-		util.WaitUntilInitDone,
 		naming.CertMountPath,
 		naming.ReplicationTmp,
 		naming.ReplicationCertPath,
@@ -197,9 +196,9 @@ done
 
 	// Elide the above script from `ps` and `top` by wrapping it in a function
 	// and calling that.
-	wrapper := `monitor() {` + script + `}; export -f monitor; exec -a "$0" bash -ceu monitor`
+	wrapper := util.WaitUntilInitDone + `monitor() {` + script + `}; export -f monitor; exec -a "$0" bash -xceu monitor`
 
-	return []string{"bash", "-ceu", "--", wrapper, name}
+	return []string{"bash", "-xceu", "--", wrapper, name}
 }
 
 // startupCommand returns an entrypoint that prepares the filesystem for
@@ -272,6 +271,8 @@ chmod +x /tmp/pg_rewind_tde.sh
 
 		// Function to print a message to stderr then exit non-zero.
 		bashHalt,
+
+		flyInitDone,
 
 		// Function to log values in a basic structured format.
 		`results() { printf '::postgres-operator: %s::%s\n' "$@"; }`,
@@ -357,7 +358,7 @@ chmod +x /tmp/pg_rewind_tde.sh
 			return strings.Join([]string{pg_rewind_override, tablespaceCmd}, "\n")
 		}(),
 		// When the data directory is empty, there's nothing more to do.
-		`[ -f "${postgres_data_directory}/PG_VERSION" ] || exit 0`,
+		`[ -f "${postgres_data_directory}/PG_VERSION" ] || flyInitDone`,
 
 		// Abort when the data directory is not empty and its version does not
 		// match the cluster spec.
@@ -393,9 +394,8 @@ chmod +x /tmp/pg_rewind_tde.sh
 		`rm -f "${postgres_data_directory}/recovery.signal"`,
 
 		// Fly hack: signal to other containers that the init is done
-		`touch /fly-init/pg-ready`,
-		`sleep inf`,
+		`flyInitDone`,
 	}, "\n")
 
-	return append([]string{"bash", "-ceu", "--", script, "startup"}, args...)
+	return append([]string{"bash", "-xceu", "--", script, "startup"}, args...)
 }

@@ -452,7 +452,7 @@ func reloadCommand(name string) []string {
 	// descriptor gets closed and reopened to use the builtin `[ -nt` to check
 	// mtimes.
 	// - https://unix.stackexchange.com/a/407383
-	const script = util.WaitUntilInitDone + `
+	const script = `
 exec {fd}<> <(:)
 until read -r -t 5 -u "${fd}"; do
   if
@@ -475,11 +475,11 @@ done
 
 	// Elide the above script from `ps` and `top` by wrapping it in a function
 	// and calling that.
-	wrapper := `monitor() {` + script + `};` +
+	wrapper := util.WaitUntilInitDone + `monitor() {` + script + `};` +
 		` export directory="$1" authority="$2" filename="$3"; export -f monitor;` +
-		` exec -a "$0" bash -ceu monitor`
+		` exec -a "$0" bash -xceu monitor`
 
-	return []string{"bash", "-ceu", "--", wrapper, name,
+	return []string{"bash", "-xceu", "--", wrapper, name,
 		serverMountPath, certAuthorityAbsolutePath, serverConfigAbsolutePath}
 }
 
