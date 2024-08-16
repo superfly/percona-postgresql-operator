@@ -1128,10 +1128,6 @@ func (r *Reconciler) reconcileInstance(
 		addTMPEmptyDir(&instance.Spec.Template, sizeLimit)
 	}
 
-	if err == nil {
-		addFlyInitMount(&instance.Spec.Template)
-	}
-
 	// mount shared memory to the Postgres instance
 	if err == nil {
 		addDevSHM(&instance.Spec.Template)
@@ -1145,27 +1141,6 @@ func (r *Reconciler) reconcileInstance(
 	}
 
 	return err
-}
-
-// add /fly-init to all containers
-func addFlyInitMount(pod *corev1.PodTemplateSpec) {
-	volume := "fly-init-volume"
-
-	pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
-		Name: volume,
-		VolumeSource: corev1.VolumeSource{
-			EmptyDir: &corev1.EmptyDirVolumeSource{},
-		},
-	})
-
-	for i := range pod.Spec.Containers {
-		pod.Spec.Containers[i].VolumeMounts = append(pod.Spec.Containers[i].VolumeMounts,
-			corev1.VolumeMount{
-				Name:      volume,
-				MountPath: "/fly-init",
-				ReadOnly:  false,
-			})
-	}
 }
 
 func generateInstanceStatefulSetIntent(_ context.Context,
