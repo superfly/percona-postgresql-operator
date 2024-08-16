@@ -363,9 +363,9 @@ chmod +x /tmp/pg_rewind_tde.sh
 			"/pgconf/tls/tls.key",
 			"/pgconf/tls/tls.crt",
 			"/pgconf/tls/ca.crt",
-			"/pgconf/replication/tls.crt",
-			"/pgconf/replication/tls.key",
-			"/pgconf/replication/ca.crt",
+			"/pgconf/tls/replication/tls.crt",
+			"/pgconf/tls/replication/tls.key",
+			"/pgconf/tls/replication/ca.crt",
 		}, " "),
 
 		// When the data directory is empty, there's nothing more to do.
