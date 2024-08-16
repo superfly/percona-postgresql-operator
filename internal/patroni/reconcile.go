@@ -116,7 +116,7 @@ func InstancePod(ctx context.Context,
 		}
 	}
 
-	container.Command = []string{"bash", "-xceu", "--", util.WaitUntilInitDone + "patroni " + configDirectory}
+	container.Command = []string{"bash", "-ceu", "--", util.WaitUntilInitDone + "patroni " + configDirectory}
 
 	container.Env = append(container.Env,
 		instanceEnvironment(inCluster, inClusterPodService, inPatroniLeaderService,

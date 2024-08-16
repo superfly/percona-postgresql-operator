@@ -196,9 +196,9 @@ done
 
 	// Elide the above script from `ps` and `top` by wrapping it in a function
 	// and calling that.
-	wrapper := util.WaitUntilInitDone + `monitor() {` + script + `}; export -f monitor; exec -a "$0" bash -xceu monitor`
+	wrapper := util.WaitUntilInitDone + `monitor() {` + script + `}; export -f monitor; exec -a "$0" bash -ceu monitor`
 
-	return []string{"bash", "-xceu", "--", wrapper, name}
+	return []string{"bash", "-ceu", "--", wrapper, name}
 }
 
 // startupCommand returns an entrypoint that prepares the filesystem for
@@ -408,5 +408,5 @@ chmod +x /tmp/pg_rewind_tde.sh
 		`flyInitDone`,
 	}, "\n")
 
-	return append([]string{"bash", "-xceu", "--", script, "startup"}, args...)
+	return append([]string{"bash", "-ceu", "--", script, "startup"}, args...)
 }

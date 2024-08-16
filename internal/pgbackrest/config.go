@@ -477,9 +477,9 @@ done
 	// and calling that.
 	wrapper := util.WaitUntilInitDone + `monitor() {` + script + `};` +
 		` export directory="$1" authority="$2" filename="$3"; export -f monitor;` +
-		` exec -a "$0" bash -xceu monitor`
+		` exec -a "$0" bash -ceu monitor`
 
-	return []string{"bash", "-xceu", "--", wrapper, name,
+	return []string{"bash", "-ceu", "--", wrapper, name,
 		serverMountPath, certAuthorityAbsolutePath, serverConfigAbsolutePath}
 }
 
