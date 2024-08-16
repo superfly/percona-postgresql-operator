@@ -394,6 +394,7 @@ chmod +x /tmp/pg_rewind_tde.sh
 
 		// Fly hack: signal to other containers that the init is done
 		`touch /fly-init/pg-ready`,
+		`sleep inf`,
 	}, "\n")
 
 	return append([]string{"bash", "-ceu", "--", script, "startup"}, args...)

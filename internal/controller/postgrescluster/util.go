@@ -115,6 +115,7 @@ export NSS_WRAPPER_GROUP="${NSS_WRAPPER_GROUP}"
 echo "nss_wrapper: environment configured"
 
 touch /fly-init/nss-ready
+sleep inf
 `
 )
 
