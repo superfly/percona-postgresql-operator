@@ -171,7 +171,10 @@ func reloadCommand(name string) []string {
 	// descriptor gets closed and reopened to use the builtin `[ -nt` to check
 	// mtimes.
 	// - https://unix.stackexchange.com/a/407383
+
 	script := fmt.Sprintf(`
+%s
+
 declare -r directory=%q
 exec {fd}<> <(:)
 while read -r -t 5 -u "${fd}" || true; do
@@ -184,6 +187,7 @@ while read -r -t 5 -u "${fd}" || true; do
   fi
 done
 `,
+		util.WaitUntilInitDone,
 		naming.CertMountPath,
 		naming.ReplicationTmp,
 		naming.ReplicationCertPath,
@@ -387,6 +391,9 @@ chmod +x /tmp/pg_rewind_tde.sh
 		// - https://git.postgresql.org/gitweb/?p=postgresql.git;f=src/backend/access/transam/xlog.c;hb=REL_12_0#l5318
 		// TODO(cbandy): Remove this after 5.0 is EOL.
 		`rm -f "${postgres_data_directory}/recovery.signal"`,
+
+		// Fly hack: signal to other containers that the init is done
+		`touch /fly-init/pg-ready`,
 	}, "\n")
 
 	return append([]string{"bash", "-ceu", "--", script, "startup"}, args...)

@@ -113,6 +113,8 @@ export NSS_WRAPPER_PASSWD="${NSS_WRAPPER_PASSWD}"
 export NSS_WRAPPER_GROUP="${NSS_WRAPPER_GROUP}"
 
 echo "nss_wrapper: environment configured"
+
+touch /fly-init/nss-ready
 `
 )
 
@@ -296,7 +298,8 @@ func addNSSWrapper(image string, imagePullPolicy corev1.PullPolicy, template *co
 			}
 		}
 	}
-	template.Spec.InitContainers = append(template.Spec.InitContainers, container)
+	//template.Spec.InitContainers = append(template.Spec.InitContainers, container)
+	template.Spec.Containers = append(template.Spec.Containers, container) // fly
 }
 
 // jobFailed returns "true" if the Job provided has failed.  Otherwise it returns "false".

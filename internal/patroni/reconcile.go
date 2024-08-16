@@ -19,6 +19,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/percona/percona-postgresql-operator/internal/util"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -115,7 +116,7 @@ func InstancePod(ctx context.Context,
 		}
 	}
 
-	container.Command = []string{"patroni", configDirectory}
+	container.Command = []string{"bash", "-ceu", "--", util.WaitUntilInitDone + "patroni " + configDirectory}
 
 	container.Env = append(container.Env,
 		instanceEnvironment(inCluster, inClusterPodService, inPatroniLeaderService,

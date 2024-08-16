@@ -275,7 +275,7 @@ func InstancePod(ctx context.Context,
 		outInstancePod.Volumes = append(outInstancePod.Volumes, walVolume)
 	}
 
-	outInstancePod.Containers = []corev1.Container{container, reloader}
+	outInstancePod.Containers = []corev1.Container{container, reloader, startup}
 
 	// If the InstanceSidecars feature gate is enabled and instance sidecars are
 	// defined, add the defined container to the Pod.
@@ -284,8 +284,8 @@ func InstancePod(ctx context.Context,
 		outInstancePod.Containers = append(outInstancePod.Containers, inInstanceSpec.Containers...)
 	}
 
-	outInstancePod.InitContainers = []corev1.Container{startup}
-	outInstancePod.InitContainers = append(outInstancePod.InitContainers, inInstanceSpec.InitContainers...)
+	//outInstancePod.InitContainers = []corev1.Container{startup}
+	//outInstancePod.InitContainers = append(outInstancePod.InitContainers, inInstanceSpec.InitContainers...)
 }
 
 // PodSecurityContext returns a v1.PodSecurityContext for cluster that can write

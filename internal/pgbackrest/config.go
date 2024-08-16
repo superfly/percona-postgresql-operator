@@ -21,6 +21,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/percona/percona-postgresql-operator/internal/util"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -451,7 +452,7 @@ func reloadCommand(name string) []string {
 	// descriptor gets closed and reopened to use the builtin `[ -nt` to check
 	// mtimes.
 	// - https://unix.stackexchange.com/a/407383
-	const script = `
+	const script = util.WaitUntilInitDone + `
 exec {fd}<> <(:)
 until read -r -t 5 -u "${fd}"; do
   if
