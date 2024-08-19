@@ -62,9 +62,11 @@ func (r *Reconciler) reconcilePGBouncer(
 	if err == nil {
 		err = r.reconcilePGBouncerPodDisruptionBudget(ctx, cluster)
 	}
-	if err == nil {
-		err = r.reconcilePGBouncerInPostgreSQL(ctx, cluster, instances, secret)
-	}
+
+	// this relies on exec with stdin
+	//if err == nil {
+	//	err = r.reconcilePGBouncerInPostgreSQL(ctx, cluster, instances, secret)
+	//}
 	return err
 }
 

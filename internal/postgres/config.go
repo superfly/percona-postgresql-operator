@@ -359,7 +359,7 @@ chmod +x /tmp/pg_rewind_tde.sh
 		}(),
 
 		`chmod 0600 ` + strings.Join([]string{
-			"/etc/pgbackrest/server/server-tls.key",
+			//"/etc/pgbackrest/server/server-tls.key",
 			"/pgconf/tls/tls.key",
 			"/pgconf/tls/tls.crt",
 			"/pgconf/tls/ca.crt",
