@@ -196,7 +196,7 @@ done
 
 	// Elide the above script from `ps` and `top` by wrapping it in a function
 	// and calling that.
-	wrapper := util.WaitUntilInitDone + `monitor() {` + script + `}; export -f monitor; exec -a "$0" bash -ceu monitor`
+	wrapper := util.WaitUntilInitDone("monitor loop") + `monitor() {` + script + `}; export -f monitor; exec -a "$0" bash -ceu monitor`
 
 	return []string{"bash", "-ceu", "--", wrapper, name}
 }

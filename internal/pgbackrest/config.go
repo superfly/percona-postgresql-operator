@@ -475,7 +475,7 @@ done
 
 	// Elide the above script from `ps` and `top` by wrapping it in a function
 	// and calling that.
-	wrapper := util.WaitUntilInitDone + `monitor() {` + script + `};` +
+	wrapper := util.WaitUntilInitDone("reload pgbackrest loop") + `monitor() {` + script + `};` +
 		` export directory="$1" authority="$2" filename="$3"; export -f monitor;` +
 		` exec -a "$0" bash -ceu monitor`
 
