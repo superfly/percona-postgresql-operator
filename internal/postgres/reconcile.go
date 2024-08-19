@@ -118,34 +118,34 @@ func InstancePod(ctx context.Context,
 				// pgMonitor configuration (queries_nodemx.yml)
 				// https://github.com/CrunchyData/pgmonitor/blob/master/postgres_exporter/common/queries_nodemx.yml
 				Items: []corev1.DownwardAPIVolumeFile{{
-					//	Path: "cpu_limit",
-					//	ResourceFieldRef: &corev1.ResourceFieldSelector{
-					//		ContainerName: naming.ContainerDatabase,
-					//		Resource:      "limits.cpu",
-					//		Divisor:       oneMillicore,
-					//	},
-					//}, {
-					//	Path: "cpu_request",
-					//	ResourceFieldRef: &corev1.ResourceFieldSelector{
-					//		ContainerName: naming.ContainerDatabase,
-					//		Resource:      "requests.cpu",
-					//		Divisor:       oneMillicore,
-					//	},
-					//}, {
-					//	Path: "mem_limit",
-					//	ResourceFieldRef: &corev1.ResourceFieldSelector{
-					//		ContainerName: naming.ContainerDatabase,
-					//		Resource:      "limits.memory",
-					//		Divisor:       oneMebibyte,
-					//	},
-					//}, {
-					//	Path: "mem_request",
-					//	ResourceFieldRef: &corev1.ResourceFieldSelector{
-					//		ContainerName: naming.ContainerDatabase,
-					//		Resource:      "requests.memory",
-					//		Divisor:       oneMebibyte,
-					//	},
-					//}, {
+					Path: "cpu_limit",
+					ResourceFieldRef: &corev1.ResourceFieldSelector{
+						ContainerName: naming.ContainerDatabase,
+						Resource:      "limits.cpu",
+						Divisor:       oneMillicore,
+					},
+				}, {
+					Path: "cpu_request",
+					ResourceFieldRef: &corev1.ResourceFieldSelector{
+						ContainerName: naming.ContainerDatabase,
+						Resource:      "requests.cpu",
+						Divisor:       oneMillicore,
+					},
+				}, {
+					Path: "mem_limit",
+					ResourceFieldRef: &corev1.ResourceFieldSelector{
+						ContainerName: naming.ContainerDatabase,
+						Resource:      "limits.memory",
+						Divisor:       oneMebibyte,
+					},
+				}, {
+					Path: "mem_request",
+					ResourceFieldRef: &corev1.ResourceFieldSelector{
+						ContainerName: naming.ContainerDatabase,
+						Resource:      "requests.memory",
+						Divisor:       oneMebibyte,
+					},
+				}, {
 					Path: "labels",
 					FieldRef: &corev1.ObjectFieldSelector{
 						APIVersion: corev1.SchemeGroupVersion.Version,
