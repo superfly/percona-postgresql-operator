@@ -140,10 +140,10 @@ spec:
               matchLabels:
                 postgres-operator.crunchydata.com/data: postgres
             topologyKey: kubernetes.io/hostname
-#    resources:
-#      limits:
-#        cpu: 2.0
-#        memory: 4Gi
+    resources:
+      limits:
+        cpu: 2.0
+        memory: 4Gi
 #    containers:
 #      replicaCertCopy:
 #        resources:
