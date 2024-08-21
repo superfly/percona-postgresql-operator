@@ -84,7 +84,6 @@ func newPodExecutor(config *rest.Config) (podExecutor, error) {
 		}
 		stdinB64 := base64.StdEncoding.EncodeToString([]byte(stdinStr))
 
-		//commandStr := strings.Join(command, " ")
 		var commandB64 []string
 		for _, c := range command {
 			commandB64 = append(commandB64, `"`+base64.StdEncoding.EncodeToString([]byte(c))+`"`)
