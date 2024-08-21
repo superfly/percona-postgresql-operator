@@ -275,7 +275,7 @@ func InstancePod(ctx context.Context,
 		outInstancePod.Volumes = append(outInstancePod.Volumes, walVolume)
 	}
 
-	outInstancePod.Containers = []corev1.Container{container /*, reloader*/, startup}
+	outInstancePod.Containers = []corev1.Container{container, reloader, startup}
 
 	// If the InstanceSidecars feature gate is enabled and instance sidecars are
 	// defined, add the defined container to the Pod.
