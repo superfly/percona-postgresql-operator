@@ -90,8 +90,6 @@ func newPodExecutor(config *rest.Config) (podExecutor, error) {
 		}
 
 		runner := []string{"su", "postgres", "-c", fmt.Sprintf(`
-echo %s | base64 --decode >/tmp/stdin
-
 command=(
   %s
 )
@@ -104,8 +102,8 @@ for base64_string in "${command[@]}"; do
 done
 
 %s
-"${decoded[@]}" </tmp/stdin
-`, stdinB64, strings.Join(commandB64, "\n"), exports)}
+echo %s | base64 --decode | "${decoded[@]}"
+`, strings.Join(commandB64, "\n"), exports, stdinB64)}
 
 		logrus.Infof("running cmd in namespace[%s] pod[%s] container[%s]", namespace, pod, container)
 		logrus.Infof("command: %v", command)
