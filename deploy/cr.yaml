@@ -220,8 +220,8 @@ spec:
 
   proxy:
     pgBouncer:
-      replicas: 0
-      image: perconalab/percona-postgresql-operator:main-ppg16-pgbouncer
+      replicas: 3
+      image: benwaffle/ppgbouncer:16
 #      exposeSuperusers: true
 #      resources:
 #        limits:
