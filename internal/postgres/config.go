@@ -173,7 +173,6 @@ func reloadCommand(name string) []string {
 	// descriptor gets closed and reopened to use the builtin `[ -nt` to check
 	// mtimes.
 	// - https://unix.stackexchange.com/a/407383
-
 	script := fmt.Sprintf(`
 declare -r directory=%q
 exec {fd}<> <(:)
@@ -359,7 +358,8 @@ chmod +x /tmp/pg_rewind_tde.sh
 		}(),
 
 		`chmod 0600 ` + strings.Join([]string{
-			//"/etc/pgbackrest/server/server-tls.key",
+			"/etc/pgbackrest/conf.d/~postgres-operator/client-tls.key",
+			"/etc/pgbackrest/server/server-tls.key",
 			"/pgconf/tls/tls.key",
 			"/pgconf/tls/tls.crt",
 			"/pgconf/tls/ca.crt",

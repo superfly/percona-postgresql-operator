@@ -740,7 +740,9 @@ func generateBackupJobSpecIntent(postgresCluster *v1beta1.PostgresCluster,
 	cmdOpts = append(cmdOpts, opts...)
 
 	container := corev1.Container{
-		Command: []string{"/opt/crunchy/bin/pgbackrest"},
+		Command: []string{"bash", "-c", "--", `
+chmod 0600 /etc/pgbackrest/conf.d/~postgres-operator/client-tls.key
+/opt/crunchy/bin/pgbackrest`},
 		Env: []corev1.EnvVar{
 			{Name: "COMMAND", Value: "backup"},
 			{Name: "COMMAND_OPTS", Value: strings.Join(cmdOpts, " ")},

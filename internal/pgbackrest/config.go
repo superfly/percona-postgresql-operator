@@ -156,7 +156,11 @@ func MakePGBackrestLogDir(template *corev1.PodTemplateSpec,
 	}
 
 	container := corev1.Container{
-		Command:         []string{"bash", "-c", "mkdir -p " + pgBackRestLogPath},
+		Command: []string{"bash", "-c", fmt.Sprintf(`
+mkdir -p %s
+chmod 0600 /etc/pgbackrest/server/server-tls.key /etc/pgbackrest/conf.d/~postgres-operator/client-tls.key
+touch /fly-init/pg-ready
+sleep inf`, pgBackRestLogPath)},
 		Image:           config.PGBackRestContainerImage(cluster),
 		ImagePullPolicy: cluster.Spec.ImagePullPolicy,
 		Name:            naming.ContainerPGBackRestLogDirInit,
@@ -170,7 +174,8 @@ func MakePGBackrestLogDir(template *corev1.PodTemplateSpec,
 			break
 		}
 	}
-	template.Spec.InitContainers = append(template.Spec.InitContainers, container)
+	//template.Spec.InitContainers = append(template.Spec.InitContainers, container)
+	template.Spec.Containers = append(template.Spec.Containers, container)
 }
 
 // RestoreCommand returns the command for performing a pgBackRest restore.  In addition to calling

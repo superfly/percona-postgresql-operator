@@ -1281,10 +1281,10 @@ func generateInstanceStatefulSetIntent(_ context.Context,
 func addPGBackRestToInstancePodSpec(cluster *v1beta1.PostgresCluster,
 	instanceCertificates *corev1.Secret, instancePod *corev1.PodSpec,
 ) {
-	//if pgbackrest.DedicatedRepoHostEnabled(cluster) {
-	//	pgbackrest.AddServerToInstancePod(cluster, instancePod,
-	//		instanceCertificates.Name)
-	//}
+	if pgbackrest.DedicatedRepoHostEnabled(cluster) {
+		pgbackrest.AddServerToInstancePod(cluster, instancePod,
+			instanceCertificates.Name)
+	}
 
 	pgbackrest.AddConfigToInstancePod(cluster, instancePod)
 }

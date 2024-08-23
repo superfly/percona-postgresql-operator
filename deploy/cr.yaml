@@ -2,6 +2,8 @@ apiVersion: pgv2.percona.com/v2
 kind: PerconaPGCluster
 metadata:
   name: cluster1
+  annotations:
+    postgres-operator.crunchydata.com/pgbackrest-ip-version: ipv6
 #  finalizers:
 #  - percona.com/delete-pvc
 #  - percona.com/delete-ssl
@@ -129,7 +131,7 @@ spec:
 
   instances:
   - name: instance1
-    replicas: 1
+    replicas: 3
 
     affinity:
       podAntiAffinity:
