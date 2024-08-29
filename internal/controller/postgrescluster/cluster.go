@@ -128,9 +128,9 @@ func (r *Reconciler) generateClusterPrimaryService(
 
 	// Endpoints for a Service have the same name as the Service. Copy labels,
 	// annotations, and ownership, too.
-	endpoints := &corev1.Endpoints{}
-	service.ObjectMeta.DeepCopyInto(&endpoints.ObjectMeta)
-	endpoints.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("Endpoints"))
+	//endpoints := &corev1.Endpoints{}
+	//service.ObjectMeta.DeepCopyInto(&endpoints.ObjectMeta)
+	//endpoints.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("Endpoints"))
 
 	if leader == nil {
 		// TODO(cbandy): We need to build a different kind of Service here.
@@ -151,21 +151,26 @@ func (r *Reconciler) generateClusterPrimaryService(
 	}}
 
 	// Resolve to the ClusterIP for which Patroni has configured the Endpoints.
-	endpoints.Subsets = []corev1.EndpointSubset{{
-		Addresses: []corev1.EndpointAddress{{IP: leader.Spec.ClusterIP}},
-	}}
+	//endpoints.Subsets = []corev1.EndpointSubset{{
+	//	Addresses: []corev1.EndpointAddress{{IP: leader.Spec.ClusterIP}},
+	//}}
 
 	// Copy the EndpointPorts from the ServicePorts.
-	for _, sp := range service.Spec.Ports {
-		endpoints.Subsets[0].Ports = append(endpoints.Subsets[0].Ports,
-			corev1.EndpointPort{
-				Name:     sp.Name,
-				Port:     sp.Port,
-				Protocol: sp.Protocol,
-			})
+	//for _, sp := range service.Spec.Ports {
+	//endpoints.Subsets[0].Ports = append(endpoints.Subsets[0].Ports,
+	//	corev1.EndpointPort{
+	//		Name:     sp.Name,
+	//		Port:     sp.Port,
+	//		Protocol: sp.Protocol,
+	//	})
+	//}
+
+	service.Spec.Selector = map[string]string{
+		naming.LabelCluster: cluster.Name,
+		naming.LabelRole:    naming.RolePatroniLeader,
 	}
 
-	return service, endpoints, err
+	return service, nil, err
 }
 
 // +kubebuilder:rbac:groups="",resources="endpoints",verbs={create,patch}
@@ -181,14 +186,14 @@ func (r *Reconciler) generateClusterPrimaryService(
 func (r *Reconciler) reconcileClusterPrimaryService(
 	ctx context.Context, cluster *v1beta1.PostgresCluster, leader *corev1.Service,
 ) (*corev1.Service, error) {
-	service, endpoints, err := r.generateClusterPrimaryService(cluster, leader)
+	service, _, err := r.generateClusterPrimaryService(cluster, leader)
 
 	if err == nil {
 		err = errors.WithStack(r.apply(ctx, service))
 	}
-	if err == nil {
-		err = errors.WithStack(r.apply(ctx, endpoints))
-	}
+	//if err == nil {
+	//	err = errors.WithStack(r.apply(ctx, endpoints))
+	//}
 	return service, err
 }
 
