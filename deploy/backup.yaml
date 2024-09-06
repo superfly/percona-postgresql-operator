@@ -4,6 +4,6 @@ metadata:
   name: backup1
 spec:
   pgCluster: cluster1
-  repoName: repo1
+  repoName: repo2
 #  options:
 #  - --type=full

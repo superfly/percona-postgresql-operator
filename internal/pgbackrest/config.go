@@ -21,6 +21,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/percona/percona-postgresql-operator/internal/util"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -155,7 +156,11 @@ func MakePGBackrestLogDir(template *corev1.PodTemplateSpec,
 	}
 
 	container := corev1.Container{
-		Command:         []string{"bash", "-c", "mkdir -p " + pgBackRestLogPath},
+		Command: []string{"bash", "-c", fmt.Sprintf(`
+mkdir -p %s
+chmod 0600 /etc/pgbackrest/server/server-tls.key /etc/pgbackrest/conf.d/~postgres-operator/client-tls.key
+touch /fly-init/pg-ready
+sleep inf`, pgBackRestLogPath)},
 		Image:           config.PGBackRestContainerImage(cluster),
 		ImagePullPolicy: cluster.Spec.ImagePullPolicy,
 		Name:            naming.ContainerPGBackRestLogDirInit,
@@ -169,7 +174,8 @@ func MakePGBackrestLogDir(template *corev1.PodTemplateSpec,
 			break
 		}
 	}
-	template.Spec.InitContainers = append(template.Spec.InitContainers, container)
+	//template.Spec.InitContainers = append(template.Spec.InitContainers, container)
+	template.Spec.Containers = append(template.Spec.Containers, container)
 }
 
 // RestoreCommand returns the command for performing a pgBackRest restore.  In addition to calling
@@ -474,7 +480,7 @@ done
 
 	// Elide the above script from `ps` and `top` by wrapping it in a function
 	// and calling that.
-	wrapper := `monitor() {` + script + `};` +
+	wrapper := util.WaitUntilInitDone("reload pgbackrest loop") + `monitor() {` + script + `};` +
 		` export directory="$1" authority="$2" filename="$3"; export -f monitor;` +
 		` exec -a "$0" bash -ceu monitor`
 

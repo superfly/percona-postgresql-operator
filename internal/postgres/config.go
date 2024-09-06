@@ -40,6 +40,8 @@ const (
 		` stat -Lc '%A %4u %4g %n' "$@";` +
 		` }`
 
+	flyInitDone = `flyInitDone() { echo "pg init done"; touch /fly-init/pg-ready; sleep inf; }`
+
 	// bashRecreateDirectory is a Bash function that moves the contents of an
 	// existing directory into a newly created directory of the same name.
 	bashRecreateDirectory = `
@@ -193,7 +195,7 @@ done
 
 	// Elide the above script from `ps` and `top` by wrapping it in a function
 	// and calling that.
-	wrapper := `monitor() {` + script + `}; export -f monitor; exec -a "$0" bash -ceu monitor`
+	wrapper := util.WaitUntilInitDone("monitor loop") + `monitor() {` + script + `}; export -f monitor; exec -a "$0" bash -ceu monitor`
 
 	return []string{"bash", "-ceu", "--", wrapper, name}
 }
@@ -268,6 +270,8 @@ chmod +x /tmp/pg_rewind_tde.sh
 
 		// Function to print a message to stderr then exit non-zero.
 		bashHalt,
+
+		flyInitDone,
 
 		// Function to log values in a basic structured format.
 		`results() { printf '::postgres-operator: %s::%s\n' "$@"; }`,
@@ -352,8 +356,20 @@ chmod +x /tmp/pg_rewind_tde.sh
 			}
 			return strings.Join([]string{pg_rewind_override, tablespaceCmd}, "\n")
 		}(),
+
+		`chmod 0600 ` + strings.Join([]string{
+			"/etc/pgbackrest/conf.d/~postgres-operator/client-tls.key",
+			"/etc/pgbackrest/server/server-tls.key",
+			"/pgconf/tls/tls.key",
+			"/pgconf/tls/tls.crt",
+			"/pgconf/tls/ca.crt",
+			"/pgconf/tls/replication/tls.crt",
+			"/pgconf/tls/replication/tls.key",
+			"/pgconf/tls/replication/ca.crt",
+		}, " "),
+
 		// When the data directory is empty, there's nothing more to do.
-		`[ -f "${postgres_data_directory}/PG_VERSION" ] || exit 0`,
+		`[ -f "${postgres_data_directory}/PG_VERSION" ] || flyInitDone`,
 
 		// Abort when the data directory is not empty and its version does not
 		// match the cluster spec.
@@ -387,6 +403,9 @@ chmod +x /tmp/pg_rewind_tde.sh
 		// - https://git.postgresql.org/gitweb/?p=postgresql.git;f=src/backend/access/transam/xlog.c;hb=REL_12_0#l5318
 		// TODO(cbandy): Remove this after 5.0 is EOL.
 		`rm -f "${postgres_data_directory}/recovery.signal"`,
+
+		// Fly hack: signal to other containers that the init is done
+		`flyInitDone`,
 	}, "\n")
 
 	return append([]string{"bash", "-ceu", "--", script, "startup"}, args...)
