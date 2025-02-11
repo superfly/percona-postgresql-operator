@@ -377,7 +377,8 @@ release-postgres-operator-image-labels:
 
 # Default values if not already set
 NAME ?= percona-postgresql-operator
-VERSION ?= $(shell git describe --dirty --always | sed -e 's^/^-^g; s^[.]^-^g;' | tr '[:upper:]' '[:lower:]')ROOT_REPO ?= ${PWD}
+VERSION ?= $(shell git describe --dirty --always | sed -e 's^/^-^g; s^[.]^-^g;' | tr '[:upper:]' '[:lower:]')
+ROOT_REPO ?= ${PWD}
 IMAGE_TAG_BASE ?= flyio/$(NAME)
 IMAGE ?= $(IMAGE_TAG_BASE):$(VERSION)
 PGO_VERSION ?= $(shell git describe --tags)
