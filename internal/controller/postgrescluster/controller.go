@@ -138,16 +138,16 @@ func (r *Reconciler) Reconcile(
 
 	// Check for and handle deletion of cluster. Return early if it is being
 	// deleted or there was an error.
-	if result, err := r.handleDelete(ctx, cluster); err != nil {
-		span.RecordError(err)
-		log.Error(err, "deleting")
-		return runtime.ErrorWithBackoff(err)
+	if deleteResult, deleteErr := r.handleDelete(ctx, cluster); deleteErr != nil {
+		span.RecordError(deleteErr)
+		log.Error(deleteErr, "deleting")
+		return runtime.ErrorWithBackoff(deleteErr)
 
-	} else if result != nil {
+	} else if deleteResult != nil {
 		if log := log.V(1); log.Enabled() {
-			log.Info("deleting", "result", fmt.Sprintf("%+v", *result))
+			log.Info("deleting", "result", fmt.Sprintf("%+v", *deleteResult))
 		}
-		return *result, nil
+		return *deleteResult, nil
 	}
 
 	// Perform initial validation on a cluster
@@ -194,7 +194,6 @@ func (r *Reconciler) Reconcile(
 		monitoringSecret         *corev1.Secret
 		exporterQueriesConfig    *corev1.ConfigMap
 		exporterWebConfig        *corev1.ConfigMap
-		err                      error
 	)
 
 	patchClusterStatus := func() error {
@@ -253,7 +252,7 @@ func (r *Reconciler) Reconcile(
 	// Set huge_pages = try if a hugepages resource limit > 0, otherwise set "off"
 	postgres.SetHugePages(cluster, &pgParameters)
 
-	result := reconcile.Result{}
+	result = reconcile.Result{}
 
 	if err == nil {
 		rootCA, err = r.reconcileRootCertificate(ctx, cluster)
