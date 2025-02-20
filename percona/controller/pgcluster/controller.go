@@ -176,6 +176,11 @@ func (r *PGClusterReconciler) Reconcile(ctx context.Context, request reconcile.R
 		return ctrl.Result{}, errors.Wrap(err, "get PerconaPGCluster")
 	}
 
+	log.V(1).Info("starting reconciliation",
+		"cluster", cr.Name,
+		"namespace", cr.Namespace,
+		"clusterwide", cr.Spec.OpenShift != nil)
+
 	cr.Default()
 
 	if cr.Spec.OpenShift == nil {
@@ -190,6 +195,7 @@ func (r *PGClusterReconciler) Reconcile(ctx context.Context, request reconcile.R
 	}
 
 	if err := r.ensureFinalizers(ctx, cr); err != nil {
+		log.Error(err, "failed to ensure finalizers")
 		return reconcile.Result{}, errors.Wrap(err, "ensure finalizers")
 	}
 
@@ -198,6 +204,7 @@ func (r *PGClusterReconciler) Reconcile(ctx context.Context, request reconcile.R
 
 		// We're deleting PostgresCluster explicitly to let Crunchy controller run its finalizers and not mess with us.
 		if err := r.Client.Delete(ctx, postgresCluster); client.IgnoreNotFound(err) != nil {
+			log.Error(err, "failed to delete PostgresCluster")
 			return ctrl.Result{RequeueAfter: 5 * time.Second}, errors.Wrap(err, "delete postgres cluster")
 		}
 
@@ -207,6 +214,7 @@ func (r *PGClusterReconciler) Reconcile(ctx context.Context, request reconcile.R
 		}
 
 		if err := r.runFinalizers(ctx, cr); err != nil {
+			log.Error(err, "failed to run finalizers")
 			return reconcile.Result{RequeueAfter: 5 * time.Second}, errors.Wrap(err, "run finalizers")
 		}
 
@@ -214,42 +222,52 @@ func (r *PGClusterReconciler) Reconcile(ctx context.Context, request reconcile.R
 	}
 
 	if err := r.reconcileTLS(ctx, cr); err != nil {
+		log.Error(err, "failed to reconcile TLS")
 		return reconcile.Result{}, errors.Wrap(err, "reconcile TLS")
 	}
 
 	if err := r.reconcileExternalWatchers(ctx, cr); err != nil {
+		log.Error(err, "failed to reconcile external watchers")
 		return reconcile.Result{}, errors.Wrap(err, "start external watchers")
 	}
 
 	if err := r.reconcileVersion(ctx, cr); err != nil {
+		log.Error(err, "failed to reconcile version")
 		return reconcile.Result{}, errors.Wrap(err, "reconcile version")
 	}
 
 	if err := r.reconcileBackups(ctx, cr); err != nil {
+		log.Error(err, "failed to reconcile backups")
 		return reconcile.Result{}, errors.Wrap(err, "reconcile backups")
 	}
 
 	if err := r.createBootstrapRestoreObject(ctx, cr); err != nil {
+		log.Error(err, "failed to create bootstrap restore object")
 		return reconcile.Result{}, errors.Wrap(err, "reconcile restore")
 	}
 
 	if err := r.reconcilePMM(ctx, cr); err != nil {
+		log.Error(err, "failed to reconcile PMM")
 		return reconcile.Result{}, errors.Wrap(err, "failed to add pmm sidecar")
 	}
 
 	if err := r.handleMonitorUserPassChange(ctx, cr); err != nil {
+		log.Error(err, "failed to handle monitor user password change")
 		return reconcile.Result{}, errors.Wrap(err, "failed to handle monitor user password change")
 	}
 
+	log.V(1).Info("reconciling custom extensions", "cluster", cr.Name)
 	r.reconcileCustomExtensions(cr)
 
 	if err := r.reconcileScheduledBackups(ctx, cr); err != nil {
+		log.Error(err, "failed to reconcile scheduled backups")
 		return reconcile.Result{}, errors.Wrap(err, "reconcile scheduled backups")
 	}
 
 	if cr.Spec.Pause != nil && *cr.Spec.Pause {
 		backupRunning, err := isBackupRunning(ctx, r.Client, cr)
 		if err != nil {
+			log.Error(err, "failed to check if backup is running")
 			return reconcile.Result{}, errors.Wrap(err, "is backup running")
 		}
 		if backupRunning {
@@ -261,27 +279,34 @@ func (r *PGClusterReconciler) Reconcile(ctx context.Context, request reconcile.R
 	opRes, err := controllerutil.CreateOrUpdate(ctx, r.Client, postgresCluster, func() error {
 		var err error
 		postgresCluster, err = cr.ToCrunchy(ctx, postgresCluster, r.Client.Scheme())
-
 		return err
 	})
 	if err != nil {
+		log.Error(err, "failed to create/update PostgresCluster")
 		return ctrl.Result{}, errors.Wrap(err, "update/create PostgresCluster")
 	}
 
 	// postgresCluster will not be available immediately after creation.
 	// We should wait some time, it's better to continue on the next reconcile
 	if opRes == controllerutil.OperationResultCreated {
+		log.V(1).Info("PostgresCluster created, waiting for next reconcile", "cluster", cr.Name)
 		return ctrl.Result{RequeueAfter: 1 * time.Second}, nil
 	}
 
 	if err := r.Client.Get(ctx, client.ObjectKeyFromObject(postgresCluster), postgresCluster); err != nil {
+		log.Error(err, "failed to get PostgresCluster")
 		return ctrl.Result{}, errors.Wrap(err, "get PostgresCluster")
 	}
 
 	err = r.updateStatus(ctx, cr, &postgresCluster.Status)
 	if err != nil {
+		log.Error(err, "failed to update status")
 		return ctrl.Result{}, errors.Wrap(err, "update status")
 	}
+
+	log.V(1).Info("reconciliation completed",
+		"cluster", cr.Name,
+		"namespace", cr.Namespace)
 
 	return ctrl.Result{}, nil
 }

@@ -81,8 +81,8 @@ type Reconciler struct {
 
 // Reconcile reconciles a ConfigMap in a namespace managed by the PostgreSQL Operator
 func (r *Reconciler) Reconcile(
-	ctx context.Context, request reconcile.Request) (reconcile.Result, error,
-) {
+	ctx context.Context, request reconcile.Request,
+) (reconcile.Result, error) {
 	ctx, span := r.Tracer.Start(ctx, "Reconcile")
 	log := logging.FromContext(ctx)
 	defer span.End()
@@ -100,6 +100,11 @@ func (r *Reconciler) Reconcile(
 		return runtime.ErrorWithBackoff(err)
 	}
 
+	log.V(1).Info("starting reconciliation",
+		"cluster", request.Name,
+		"namespace", request.Namespace,
+		"clusterwide", cluster.Spec.Standby == nil)
+
 	// Set any defaults that may not have been stored in the API. No DeepCopy
 	// is necessary because controller-runtime makes a copy before returning
 	// from its cache.
@@ -111,6 +116,19 @@ func (r *Reconciler) Reconcile(
 
 	// Keep a copy of cluster prior to any manipulations.
 	before := cluster.DeepCopy()
+	var err error
+	result := reconcile.Result{}
+	defer func() {
+		if !equality.Semantic.DeepEqual(before.Status, cluster.Status) {
+			statusErr := r.Client.Status().Patch(ctx, cluster, client.MergeFrom(before), r.Owner)
+			if statusErr != nil {
+				log.Error(statusErr, "patching cluster status")
+			}
+			if err == nil {
+				err = statusErr
+			}
+		}
+	}()
 
 	// NOTE(cbandy): When a namespace is deleted, objects owned by a
 	// PostgresCluster may be deleted before the PostgresCluster is deleted.
@@ -235,8 +253,11 @@ func (r *Reconciler) Reconcile(
 	// Set huge_pages = try if a hugepages resource limit > 0, otherwise set "off"
 	postgres.SetHugePages(cluster, &pgParameters)
 
+	result := reconcile.Result{}
+
 	if err == nil {
 		rootCA, err = r.reconcileRootCertificate(ctx, cluster)
+		log.V(1).Info("reconciled root certificate", "cluster", cluster.Name, "error", err)
 	}
 
 	if err == nil {
@@ -248,29 +269,33 @@ func (r *Reconciler) Reconcile(
 		// return is no longer needed, and reconciliation can proceed normally.
 		returnEarly, err := r.reconcileDirMoveJobs(ctx, cluster)
 		if err != nil || returnEarly {
+			log.V(1).Info("waiting for directory move jobs", "cluster", cluster.Name, "error", err)
 			return runtime.ErrorWithBackoff(errors.Join(err, patchClusterStatus()))
 		}
 	}
 	if err == nil {
 		clusterVolumes, err = r.observePersistentVolumeClaims(ctx, cluster)
+		log.V(1).Info("observed persistent volume claims", "cluster", cluster.Name, "count", len(clusterVolumes), "error", err)
 	}
 	if err == nil {
 		clusterVolumes, err = r.configureExistingPVCs(ctx, cluster, clusterVolumes)
+		log.V(1).Info("configured existing PVCs", "cluster", cluster.Name, "count", len(clusterVolumes), "error", err)
 	}
 	if err == nil {
 		instances, err = r.observeInstances(ctx, cluster)
+		log.V(1).Info("observed instances", "cluster", cluster.Name, "error", err)
 	}
-
-	result := reconcile.Result{}
 
 	if err == nil {
 		var requeue time.Duration
 		if requeue, err = r.reconcilePatroniStatus(ctx, cluster, instances); err == nil && requeue > 0 {
 			result.RequeueAfter = requeue
+			log.V(1).Info("requeuing for patroni status", "cluster", cluster.Name, "after", requeue)
 		}
 	}
 	if err == nil {
 		err = r.reconcilePatroniSwitchover(ctx, cluster, instances)
+		log.V(1).Info("reconciled patroni switchover", "cluster", cluster.Name, "error", err)
 	}
 	// reconcile the Pod service before reconciling any data source in case it is necessary
 	// to start Pods during data source reconciliation that require network connections (e.g.
@@ -278,6 +303,7 @@ func (r *Reconciler) Reconcile(
 	// own existing backups).
 	if err == nil {
 		clusterPodService, err = r.reconcileClusterPodService(ctx, cluster)
+		log.V(1).Info("reconciled cluster pod service", "cluster", cluster.Name, "error", err)
 	}
 	// reconcile the RBAC resources before reconciling any data source in case
 	// restore/move Job pods require the ServiceAccount to access any data source.
@@ -285,6 +311,7 @@ func (r *Reconciler) Reconcile(
 	// - https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts-technical-overview.html
 	if err == nil {
 		instanceServiceAccount, err = r.reconcileRBACResources(ctx, cluster)
+		log.V(1).Info("reconciled RBAC resources", "cluster", cluster.Name, "error", err)
 	}
 	// First handle reconciling any data source configured for the PostgresCluster.  This includes
 	// reconciling the data source defined to bootstrap a new cluster, as well as a reconciling
@@ -298,43 +325,56 @@ func (r *Reconciler) Reconcile(
 		// can proceed normally.
 		returnEarly, err := r.reconcileDataSource(ctx, cluster, instances, clusterVolumes, rootCA)
 		if err != nil || returnEarly {
+			log.V(1).Info("waiting for data source initialization", "cluster", cluster.Name, "error", err)
 			return runtime.ErrorWithBackoff(errors.Join(err, patchClusterStatus()))
 		}
 	}
 	if err == nil {
+		log.V(1).Info("reconciling cluster config map", "cluster", cluster.Name)
 		clusterConfigMap, err = r.reconcileClusterConfigMap(ctx, cluster, pgHBAs, pgParameters)
 	}
 	if err == nil {
+		log.V(1).Info("reconciling replication secret", "cluster", cluster.Name)
 		clusterReplicationSecret, err = r.reconcileReplicationSecret(ctx, cluster, rootCA)
 	}
 	if err == nil {
+		log.V(1).Info("reconciling patroni leader lease", "cluster", cluster.Name)
 		patroniLeaderService, err = r.reconcilePatroniLeaderLease(ctx, cluster)
 	}
 	if err == nil {
+		log.V(1).Info("reconciling cluster primary service", "cluster", cluster.Name)
 		primaryService, err = r.reconcileClusterPrimaryService(ctx, cluster, patroniLeaderService)
 	}
 	if err == nil {
+		log.V(1).Info("reconciling cluster replica service", "cluster", cluster.Name)
 		replicaService, err = r.reconcileClusterReplicaService(ctx, cluster)
 	}
 	if err == nil {
+		log.V(1).Info("reconciling cluster certificate", "cluster", cluster.Name)
 		primaryCertificate, err = r.reconcileClusterCertificate(ctx, rootCA, cluster, primaryService, replicaService)
 	}
 	if err == nil {
+		log.V(1).Info("reconciling patroni distributed configuration", "cluster", cluster.Name)
 		err = r.reconcilePatroniDistributedConfiguration(ctx, cluster)
 	}
 	if err == nil {
+		log.V(1).Info("reconciling patroni dynamic configuration", "cluster", cluster.Name)
 		err = r.reconcilePatroniDynamicConfiguration(ctx, cluster, instances, pgHBAs, pgParameters)
 	}
 	if err == nil {
+		log.V(1).Info("reconciling monitoring secret", "cluster", cluster.Name)
 		monitoringSecret, err = r.reconcileMonitoringSecret(ctx, cluster)
 	}
 	if err == nil {
+		log.V(1).Info("reconciling exporter queries config", "cluster", cluster.Name)
 		exporterQueriesConfig, err = r.reconcileExporterQueriesConfig(ctx, cluster)
 	}
 	if err == nil {
+		log.V(1).Info("reconciling exporter web config", "cluster", cluster.Name)
 		exporterWebConfig, err = r.reconcileExporterWebConfig(ctx, cluster)
 	}
 	if err == nil {
+		log.V(1).Info("reconciling instance sets", "cluster", cluster.Name)
 		err = r.reconcileInstanceSets(
 			ctx, cluster, clusterConfigMap, clusterReplicationSecret, rootCA,
 			clusterPodService, instanceServiceAccount, instances, patroniLeaderService,
@@ -342,36 +382,43 @@ func (r *Reconciler) Reconcile(
 	}
 
 	if err == nil {
+		log.V(1).Info("reconciling postgres databases", "cluster", cluster.Name)
 		err = r.reconcilePostgresDatabases(ctx, cluster, instances)
 	}
 	if err == nil {
+		log.V(1).Info("reconciling postgres users", "cluster", cluster.Name)
 		err = r.reconcilePostgresUsers(ctx, cluster, instances)
 	}
 
 	if err == nil {
+		log.V(1).Info("reconciling pgbackrest", "cluster", cluster.Name)
 		var next reconcile.Result
 		if next, err = r.reconcilePGBackRest(ctx, cluster, instances, rootCA); err == nil && !next.IsZero() {
 			result.Requeue = result.Requeue || next.Requeue
 			if next.RequeueAfter > 0 {
 				result.RequeueAfter = next.RequeueAfter
+				log.V(1).Info("requeuing for pgbackrest", "cluster", cluster.Name, "after", next.RequeueAfter)
 			}
 		}
 	}
 	if err == nil {
+		log.V(1).Info("reconciling pgbouncer", "cluster", cluster.Name)
 		err = r.reconcilePGBouncer(ctx, cluster, instances, primaryCertificate, rootCA)
 	}
 	if err == nil {
+		log.V(1).Info("reconciling pgmonitor", "cluster", cluster.Name)
 		err = r.reconcilePGMonitor(ctx, cluster, instances, monitoringSecret)
 	}
 	if err == nil {
+		log.V(1).Info("reconciling database init sql", "cluster", cluster.Name)
 		err = r.reconcileDatabaseInitSQL(ctx, cluster, instances)
 	}
 	if err == nil {
+		log.V(1).Info("reconciling pgadmin", "cluster", cluster.Name)
 		err = r.reconcilePGAdmin(ctx, cluster)
 	}
 	if err == nil {
-		// This is after [Reconciler.rolloutInstances] to ensure that recreating
-		// Pods takes precedence.
+		log.V(1).Info("handling patroni restarts", "cluster", cluster.Name)
 		err = r.handlePatroniRestarts(ctx, cluster, instances)
 	}
 
@@ -379,7 +426,11 @@ func (r *Reconciler) Reconcile(
 	// observedGeneration
 	cluster.Status.ObservedGeneration = cluster.GetGeneration()
 
-	log.V(1).Info("reconciled cluster")
+	log.V(1).Info("reconciliation completed",
+		"cluster", cluster.Name,
+		"error", err,
+		"requeue", result.Requeue,
+		"requeueAfter", result.RequeueAfter)
 
 	return result, errors.Join(err, patchClusterStatus())
 }
