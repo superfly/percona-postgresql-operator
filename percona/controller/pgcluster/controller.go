@@ -29,6 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	"github.com/percona/percona-postgresql-operator/internal/errortracking"
 	"github.com/percona/percona-postgresql-operator/internal/logging"
 	"github.com/percona/percona-postgresql-operator/internal/naming"
 	perconaController "github.com/percona/percona-postgresql-operator/percona/controller"
@@ -172,6 +173,10 @@ func (r *PGClusterReconciler) Reconcile(ctx context.Context, request reconcile.R
 		// cluster is deleted.
 		if err = client.IgnoreNotFound(err); err != nil {
 			log.Error(err, "unable to fetch PerconaPGCluster")
+			errortracking.CaptureError(err, map[string]string{
+				"cluster":   request.Name,
+				"namespace": request.Namespace,
+			})
 		}
 		return ctrl.Result{}, errors.Wrap(err, "get PerconaPGCluster")
 	}
@@ -196,6 +201,11 @@ func (r *PGClusterReconciler) Reconcile(ctx context.Context, request reconcile.R
 
 	if err := r.ensureFinalizers(ctx, cr); err != nil {
 		log.Error(err, "failed to ensure finalizers")
+		errortracking.CaptureError(err, map[string]string{
+			"cluster":   cr.Name,
+			"namespace": cr.Namespace,
+			"phase":     "finalizers",
+		})
 		return reconcile.Result{}, errors.Wrap(err, "ensure finalizers")
 	}
 
@@ -223,6 +233,11 @@ func (r *PGClusterReconciler) Reconcile(ctx context.Context, request reconcile.R
 
 	if err := r.reconcileTLS(ctx, cr); err != nil {
 		log.Error(err, "failed to reconcile TLS")
+		errortracking.CaptureError(err, map[string]string{
+			"cluster":   cr.Name,
+			"namespace": cr.Namespace,
+			"phase":     "tls",
+		})
 		return reconcile.Result{}, errors.Wrap(err, "reconcile TLS")
 	}
 
@@ -238,6 +253,11 @@ func (r *PGClusterReconciler) Reconcile(ctx context.Context, request reconcile.R
 
 	if err := r.reconcileBackups(ctx, cr); err != nil {
 		log.Error(err, "failed to reconcile backups")
+		errortracking.CaptureError(err, map[string]string{
+			"cluster":   cr.Name,
+			"namespace": cr.Namespace,
+			"phase":     "backups",
+		})
 		return reconcile.Result{}, errors.Wrap(err, "reconcile backups")
 	}
 
@@ -261,6 +281,11 @@ func (r *PGClusterReconciler) Reconcile(ctx context.Context, request reconcile.R
 
 	if err := r.reconcileScheduledBackups(ctx, cr); err != nil {
 		log.Error(err, "failed to reconcile scheduled backups")
+		errortracking.CaptureError(err, map[string]string{
+			"cluster":   cr.Name,
+			"namespace": cr.Namespace,
+			"phase":     "scheduled_backups",
+		})
 		return reconcile.Result{}, errors.Wrap(err, "reconcile scheduled backups")
 	}
 
@@ -283,6 +308,11 @@ func (r *PGClusterReconciler) Reconcile(ctx context.Context, request reconcile.R
 	})
 	if err != nil {
 		log.Error(err, "failed to create/update PostgresCluster")
+		errortracking.CaptureError(err, map[string]string{
+			"cluster":   cr.Name,
+			"namespace": cr.Namespace,
+			"phase":     "postgres_cluster",
+		})
 		return ctrl.Result{}, errors.Wrap(err, "update/create PostgresCluster")
 	}
 
@@ -295,12 +325,22 @@ func (r *PGClusterReconciler) Reconcile(ctx context.Context, request reconcile.R
 
 	if err := r.Client.Get(ctx, client.ObjectKeyFromObject(postgresCluster), postgresCluster); err != nil {
 		log.Error(err, "failed to get PostgresCluster")
+		errortracking.CaptureError(err, map[string]string{
+			"cluster":   cr.Name,
+			"namespace": cr.Namespace,
+			"phase":     "get_postgres_cluster",
+		})
 		return ctrl.Result{}, errors.Wrap(err, "get PostgresCluster")
 	}
 
 	err = r.updateStatus(ctx, cr, &postgresCluster.Status)
 	if err != nil {
 		log.Error(err, "failed to update status")
+		errortracking.CaptureError(err, map[string]string{
+			"cluster":   cr.Name,
+			"namespace": cr.Namespace,
+			"phase":     "status_update",
+		})
 		return ctrl.Result{}, errors.Wrap(err, "update status")
 	}
 

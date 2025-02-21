@@ -16,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/percona/percona-postgresql-operator/internal/errortracking"
 	"github.com/percona/percona-postgresql-operator/internal/logging"
 	"github.com/percona/percona-postgresql-operator/percona/extensions"
 	pgv2 "github.com/percona/percona-postgresql-operator/pkg/apis/pgv2.percona.com/v2"
@@ -54,6 +55,10 @@ func (r *PGUpgradeReconciler) Reconcile(ctx context.Context, request reconcile.R
 		// cluster is deleted.
 		if err = client.IgnoreNotFound(err); err != nil {
 			log.Error(err, "unable to fetch PerconaPGUpgrade")
+			errortracking.CaptureError(err, map[string]string{
+				"upgrade":   request.Name,
+				"namespace": request.Namespace,
+			})
 		}
 		return reconcile.Result{}, err
 	}
@@ -65,6 +70,13 @@ func (r *PGUpgradeReconciler) Reconcile(ctx context.Context, request reconcile.R
 		},
 	}
 	if err := r.Client.Get(ctx, client.ObjectKeyFromObject(pgCluster), pgCluster); err != nil {
+		log.Error(err, "failed to get PerconaPGCluster")
+		errortracking.CaptureError(err, map[string]string{
+			"upgrade":   perconaPGUpgrade.Name,
+			"cluster":   perconaPGUpgrade.Spec.PostgresClusterName,
+			"namespace": perconaPGUpgrade.Namespace,
+			"phase":     "get_cluster",
+		})
 		return reconcile.Result{}, errors.Wrapf(err, "get PerconaPGCluster %s/%s", perconaPGUpgrade.Namespace, perconaPGUpgrade.Spec.PostgresClusterName)
 	}
 
@@ -77,10 +89,24 @@ func (r *PGUpgradeReconciler) Reconcile(ctx context.Context, request reconcile.R
 	if err := r.Client.Get(ctx, client.ObjectKeyFromObject(pgUpgrade), pgUpgrade); err != nil {
 		if k8serrors.IsNotFound(err) {
 			if err := controllerutil.SetControllerReference(perconaPGUpgrade, pgUpgrade, r.Client.Scheme()); err != nil {
+				log.Error(err, "failed to set controller reference")
+				errortracking.CaptureError(err, map[string]string{
+					"upgrade":   perconaPGUpgrade.Name,
+					"cluster":   perconaPGUpgrade.Spec.PostgresClusterName,
+					"namespace": perconaPGUpgrade.Namespace,
+					"phase":     "set_controller_ref",
+				})
 				return reconcile.Result{}, errors.Wrap(err, "set controller reference")
 			}
 
 			if err := r.createPGUpgrade(ctx, pgCluster, pgUpgrade, perconaPGUpgrade); err != nil {
+				log.Error(err, "failed to create PGUpgrade")
+				errortracking.CaptureError(err, map[string]string{
+					"upgrade":   perconaPGUpgrade.Name,
+					"cluster":   perconaPGUpgrade.Spec.PostgresClusterName,
+					"namespace": perconaPGUpgrade.Namespace,
+					"phase":     "create_upgrade",
+				})
 				return reconcile.Result{}, errors.Wrap(err, "create PGUpgrade")
 			}
 
@@ -89,6 +115,13 @@ func (r *PGUpgradeReconciler) Reconcile(ctx context.Context, request reconcile.R
 			return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
 		}
 
+		log.Error(err, "failed to get PGUpgrade")
+		errortracking.CaptureError(err, map[string]string{
+			"upgrade":   perconaPGUpgrade.Name,
+			"cluster":   perconaPGUpgrade.Spec.PostgresClusterName,
+			"namespace": perconaPGUpgrade.Namespace,
+			"phase":     "get_upgrade",
+		})
 		return reconcile.Result{}, errors.Wrapf(err, "get PGUpgrade %s/%s", pgUpgrade.Namespace, pgUpgrade.Name)
 	}
 

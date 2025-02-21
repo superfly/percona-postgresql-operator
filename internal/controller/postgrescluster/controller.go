@@ -41,6 +41,7 @@ import (
 
 	"github.com/percona/percona-postgresql-operator/internal/config"
 	"github.com/percona/percona-postgresql-operator/internal/controller/runtime"
+	"github.com/percona/percona-postgresql-operator/internal/errortracking"
 	"github.com/percona/percona-postgresql-operator/internal/initialize"
 	"github.com/percona/percona-postgresql-operator/internal/logging"
 	"github.com/percona/percona-postgresql-operator/internal/pgaudit"
@@ -96,6 +97,10 @@ func (r *Reconciler) Reconcile(
 		if err = client.IgnoreNotFound(err); err != nil {
 			log.Error(err, "unable to fetch PostgresCluster")
 			span.RecordError(err)
+			errortracking.CaptureError(err, map[string]string{
+				"cluster":   request.Name,
+				"namespace": request.Namespace,
+			})
 		}
 		return runtime.ErrorWithBackoff(err)
 	}
@@ -123,6 +128,11 @@ func (r *Reconciler) Reconcile(
 			statusErr := r.Client.Status().Patch(ctx, cluster, client.MergeFrom(before), r.Owner)
 			if statusErr != nil {
 				log.Error(statusErr, "patching cluster status")
+				errortracking.CaptureError(statusErr, map[string]string{
+					"cluster":   cluster.Name,
+					"namespace": cluster.Namespace,
+					"phase":     "status_patch",
+				})
 			}
 			if err == nil {
 				err = statusErr
@@ -141,6 +151,11 @@ func (r *Reconciler) Reconcile(
 	if deleteResult, deleteErr := r.handleDelete(ctx, cluster); deleteErr != nil {
 		span.RecordError(deleteErr)
 		log.Error(deleteErr, "deleting")
+		errortracking.CaptureError(deleteErr, map[string]string{
+			"cluster":   cluster.Name,
+			"namespace": cluster.Namespace,
+			"phase":     "deletion",
+		})
 		return runtime.ErrorWithBackoff(deleteErr)
 
 	} else if deleteResult != nil {
@@ -162,6 +177,11 @@ func (r *Reconciler) Reconcile(
 		// specifically allow reconciliation if the cluster is shutdown to
 		// facilitate upgrades, otherwise return
 		if !initialize.FromPointer(cluster.Spec.Shutdown) {
+			errortracking.CaptureError(err, map[string]string{
+				"cluster":   cluster.Name,
+				"namespace": cluster.Namespace,
+				"phase":     "image_validation",
+			})
 			return runtime.ErrorWithBackoff(err)
 		}
 	}
@@ -176,6 +196,11 @@ func (r *Reconciler) Reconcile(
 		path := field.NewPath("spec", "standby")
 		err := field.Invalid(path, cluster.Name, "Standby requires a host or repoName to be enabled")
 		r.Recorder.Event(cluster, corev1.EventTypeWarning, "InvalidStandbyConfiguration", err.Error())
+		errortracking.CaptureError(err, map[string]string{
+			"cluster":   cluster.Name,
+			"namespace": cluster.Namespace,
+			"phase":     "standby_validation",
+		})
 		return runtime.ErrorWithBackoff(err)
 	}
 
@@ -203,6 +228,11 @@ func (r *Reconciler) Reconcile(
 			if err := r.Client.Status().Patch(
 				ctx, cluster, client.MergeFrom(before), r.Owner); err != nil {
 				log.Error(err, "patching cluster status")
+				errortracking.CaptureError(err, map[string]string{
+					"cluster":   cluster.Name,
+					"namespace": cluster.Namespace,
+					"phase":     "status_patch",
+				})
 				return err
 			}
 			log.V(1).Info("patched cluster status")
@@ -430,6 +460,14 @@ func (r *Reconciler) Reconcile(
 		"error", err,
 		"requeue", result.Requeue,
 		"requeueAfter", result.RequeueAfter)
+
+	if err != nil {
+		errortracking.CaptureError(err, map[string]string{
+			"cluster":   cluster.Name,
+			"namespace": cluster.Namespace,
+			"phase":     "reconciliation",
+		})
+	}
 
 	return result, errors.Join(err, patchClusterStatus())
 }

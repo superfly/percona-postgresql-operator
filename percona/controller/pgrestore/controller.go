@@ -15,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/percona/percona-postgresql-operator/internal/errortracking"
 	"github.com/percona/percona-postgresql-operator/internal/logging"
 	"github.com/percona/percona-postgresql-operator/internal/naming"
 	"github.com/percona/percona-postgresql-operator/percona/controller"
@@ -57,6 +58,10 @@ func (r *PGRestoreReconciler) Reconcile(ctx context.Context, request reconcile.R
 		// cluster is deleted.
 		if err = client.IgnoreNotFound(err); err != nil {
 			log.Error(err, "unable to fetch perconapgrestore")
+			errortracking.CaptureError(err, map[string]string{
+				"restore":   request.Name,
+				"namespace": request.Namespace,
+			})
 		}
 		return reconcile.Result{}, err
 	}
@@ -68,6 +73,13 @@ func (r *PGRestoreReconciler) Reconcile(ctx context.Context, request reconcile.R
 	pgCluster := &v2.PerconaPGCluster{}
 	err := r.Client.Get(ctx, types.NamespacedName{Name: pgRestore.Spec.PGCluster, Namespace: request.Namespace}, pgCluster)
 	if err != nil {
+		log.Error(err, "failed to get PostgresCluster")
+		errortracking.CaptureError(err, map[string]string{
+			"restore":   pgRestore.Name,
+			"cluster":   pgRestore.Spec.PGCluster,
+			"namespace": pgRestore.Namespace,
+			"phase":     "get_cluster",
+		})
 		return reconcile.Result{}, errors.Wrap(err, "get PostgresCluster")
 	}
 
