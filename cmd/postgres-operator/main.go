@@ -24,6 +24,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/pkg/errors"
 	"go.opentelemetry.io/otel"
 	uzap "go.uber.org/zap"
@@ -70,6 +71,16 @@ func assertNoError(err error) {
 }
 
 func main() {
+	err := sentry.Init(sentry.ClientOptions{
+		Dsn: os.Getenv("SENTRY_DSN"),
+		EnableTracing: true,
+		TracesSampleRate: 1.0,
+	})
+	if err != nil {
+		fmt.Printf("Sentry initialization failed: %v\n", err)
+	}
+	defer sentry.Flush(2 * time.Second)
+
 	otelFlush, err := initOpenTelemetry()
 	assertNoError(err)
 	defer otelFlush()

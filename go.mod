@@ -5,6 +5,7 @@ go 1.22.6
 require (
 	github.com/Percona-Lab/percona-version-service v0.0.0-20230404081016-ea25e30cdcbc
 	github.com/evanphx/json-patch/v5 v5.9.0
+	github.com/getsentry/sentry-go v0.27.0
 	github.com/go-logr/logr v1.4.2
 	github.com/go-openapi/errors v0.22.0
 	github.com/go-openapi/runtime v0.28.0
