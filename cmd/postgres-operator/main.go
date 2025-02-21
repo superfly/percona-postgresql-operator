@@ -47,7 +47,6 @@ import (
 	"github.com/percona/percona-postgresql-operator/internal/initialize"
 	"github.com/percona/percona-postgresql-operator/internal/logging"
 	"github.com/percona/percona-postgresql-operator/internal/naming"
-	"github.com/percona/percona-postgresql-operator/internal/sentry"
 	"github.com/percona/percona-postgresql-operator/internal/upgradecheck"
 	perconaController "github.com/percona/percona-postgresql-operator/percona/controller"
 	"github.com/percona/percona-postgresql-operator/percona/controller/pgbackup"
@@ -74,13 +73,6 @@ func main() {
 	otelFlush, err := initOpenTelemetry()
 	assertNoError(err)
 	defer otelFlush()
-
-	// Initialize Sentry if DSN is provided
-	if dsn := os.Getenv("SENTRY_DSN"); dsn != "" {
-		err := sentry.Initialize(dsn)
-		assertNoError(err)
-		defer sentry.Flush()
-	}
 
 	opts := zap.Options{
 		Encoder: getLogEncoder(),
