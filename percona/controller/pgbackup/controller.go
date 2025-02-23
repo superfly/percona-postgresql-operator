@@ -316,6 +316,11 @@ func getDestination(pg *v2.PerconaPGCluster, pb *v2.PerconaPGBackup) string {
 func updatePGBackrestInfo(ctx context.Context, c client.Client, pod *corev1.Pod, pgBackup *v2.PerconaPGBackup) error {
 	info, err := pgbackrest.GetInfo(ctx, pod, pgBackup.Spec.RepoName)
 	if err != nil {
+		errortracking.CaptureError(err, map[string]string{
+			"backup":    pgBackup.Name,
+			"namespace": pgBackup.Namespace,
+			"phase":     "get_pgbackrest_info",
+		})
 		return errors.Wrap(err, "get pgBackRest info")
 	}
 
@@ -354,6 +359,11 @@ func updatePGBackrestInfo(ctx context.Context, c client.Client, pod *corev1.Pod,
 
 					return c.Status().Update(ctx, bcp)
 				}); err != nil {
+					errortracking.CaptureError(err, map[string]string{
+						"backup":    pgBackup.Name,
+						"namespace": pgBackup.Namespace,
+						"phase":     "update_backup_status",
+					})
 					return errors.Wrap(err, "update PGBackup status")
 				}
 			}
@@ -361,22 +371,44 @@ func updatePGBackrestInfo(ctx context.Context, c client.Client, pod *corev1.Pod,
 			if err := pgbackrest.SetAnnotationsToBackup(ctx, pod, stanzaName, backup.Label, pgBackup.Spec.RepoName, map[string]string{
 				v2.PGBackrestAnnotationJobName: pgBackup.Status.JobName,
 			}); err != nil {
+				errortracking.CaptureError(err, map[string]string{
+					"backup":    pgBackup.Name,
+					"namespace": pgBackup.Namespace,
+					"phase":     "set_backup_annotations",
+				})
 				return errors.Wrap(err, "set annotations to backup")
 			}
 			return nil
 		}
 	}
-	return errors.New("backup annotations are not found in pgbackrest")
+
+	err = errors.New("backup annotations are not found in pgbackrest")
+	errortracking.CaptureError(err, map[string]string{
+		"backup":    pgBackup.Name,
+		"namespace": pgBackup.Namespace,
+		"phase":     "find_backup_annotations",
+	})
+	return err
 }
 
 func finishBackup(ctx context.Context, c client.Client, pgBackup *v2.PerconaPGBackup, job *batchv1.Job) (*reconcile.Result, error) {
 	if checkBackupJob(job) == v2.BackupSucceeded {
 		readyPod, err := controller.GetReadyInstancePod(ctx, c, pgBackup.Spec.PGCluster, pgBackup.Namespace)
 		if err != nil {
+			errortracking.CaptureError(err, map[string]string{
+				"backup":    pgBackup.Name,
+				"namespace": pgBackup.Namespace,
+				"phase":     "get_ready_pod",
+			})
 			return nil, errors.Wrap(err, "get ready instance pod")
 		}
 
 		if err := updatePGBackrestInfo(ctx, c, readyPod, pgBackup); err != nil {
+			errortracking.CaptureError(err, map[string]string{
+				"backup":    pgBackup.Name,
+				"namespace": pgBackup.Namespace,
+				"phase":     "update_pgbackrest_info",
+			})
 			return nil, errors.Wrap(err, "update pgbackrest info")
 		}
 	}
@@ -386,6 +418,11 @@ func finishBackup(ctx context.Context, c client.Client, pgBackup *v2.PerconaPGBa
 	}
 	runningBackup, err := getBackupInProgress(ctx, c, pgBackup.Spec.PGCluster, pgBackup.Namespace)
 	if err != nil {
+		errortracking.CaptureError(err, map[string]string{
+			"backup":    pgBackup.Name,
+			"namespace": pgBackup.Namespace,
+			"phase":     "get_backup_in_progress",
+		})
 		return nil, errors.Wrap(err, "get backup in progress")
 	}
 	if runningBackup != pgBackup.Name {
@@ -395,6 +432,11 @@ func finishBackup(ctx context.Context, c client.Client, pgBackup *v2.PerconaPGBa
 	deleteAnnotation := func(annotation string) (bool, error) {
 		pgCluster := new(v1beta1.PostgresCluster)
 		if err := c.Get(ctx, types.NamespacedName{Name: pgBackup.Spec.PGCluster, Namespace: pgBackup.Namespace}, pgCluster); err != nil {
+			errortracking.CaptureError(err, map[string]string{
+				"backup":    pgBackup.Name,
+				"namespace": pgBackup.Namespace,
+				"phase":     "get_postgres_cluster",
+			})
 			return false, errors.Wrap(err, "get PostgresCluster")
 		}
 
@@ -426,6 +468,11 @@ func finishBackup(ctx context.Context, c client.Client, pgBackup *v2.PerconaPGBa
 
 	deleted, err := deleteAnnotation(naming.PGBackRestBackup)
 	if err != nil {
+		errortracking.CaptureError(err, map[string]string{
+			"backup":    pgBackup.Name,
+			"namespace": pgBackup.Namespace,
+			"phase":     "delete_pgbackrest_backup_annotation",
+		})
 		return nil, errors.Wrapf(err, "delete %s annotation", naming.PGBackRestBackup)
 	}
 	if !deleted {
@@ -450,6 +497,11 @@ func finishBackup(ctx context.Context, c client.Client, pgBackup *v2.PerconaPGBa
 
 		return c.Update(ctx, j)
 	}); err != nil {
+		errortracking.CaptureError(err, map[string]string{
+			"backup":    pgBackup.Name,
+			"namespace": pgBackup.Namespace,
+			"phase":     "update_backup_job_labels",
+		})
 		return nil, errors.Wrap(err, "update backup job labels")
 	}
 
@@ -462,11 +514,21 @@ func finishBackup(ctx context.Context, c client.Client, pgBackup *v2.PerconaPGBa
 
 		return c.Status().Update(ctx, pgCluster)
 	}); err != nil {
+		errortracking.CaptureError(err, map[string]string{
+			"backup":    pgBackup.Name,
+			"namespace": pgBackup.Namespace,
+			"phase":     "update_postgres_cluster_status",
+		})
 		return nil, errors.Wrap(err, "update postgrescluster")
 	}
 
 	deleted, err = deleteAnnotation(pNaming.AnnotationBackupInProgress)
 	if err != nil {
+		errortracking.CaptureError(err, map[string]string{
+			"backup":    pgBackup.Name,
+			"namespace": pgBackup.Namespace,
+			"phase":     "delete_backup_in_progress_annotation",
+		})
 		return nil, errors.Wrapf(err, "delete %s annotation", pNaming.AnnotationBackupInProgress)
 	}
 	if !deleted {
