@@ -2389,10 +2389,12 @@ func (r *Reconciler) reconcileReplicaCreateBackup(ctx context.Context,
 	// pgBackRest connects to a PostgreSQL instance that is not in recovery to
 	// initiate a backup. Similar to "writable" but not exactly.
 	clusterWritable := false
+	var writableInstance *Instance
 	for _, instance := range instances.forCluster {
 		writable, known := instance.IsWritable()
 		if writable && known {
 			clusterWritable = true
+			writableInstance = instance
 			break
 		}
 	}
@@ -2406,6 +2408,35 @@ func (r *Reconciler) reconcileReplicaCreateBackup(ctx context.Context,
 	// Pods in the cluster for leader election events, and trigger reconciles accordingly.
 	if !clusterWritable || replicaCreateRepoStatus == nil || replicaCreateRepoStatus.ReplicaCreateBackupComplete {
 		return nil
+	}
+
+	// Add a grace period to ensure PostgreSQL is fully initialized before attempting a backup.
+	// This helps prevent backup failures that can occur when the backup job starts too early.
+	const backupReadinessGracePeriod = 60 * time.Second // 60 second grace period
+
+	// Check if the writable pod is ready and has been up long enough
+	if len(writableInstance.Pods) > 0 {
+		ready, known := writableInstance.IsReady()
+		if !ready || !known {
+			// Pod is not in Ready state yet, so return and wait for next reconcile
+			return nil
+		}
+
+		// Check if the pod has been ready for long enough
+		for _, condition := range writableInstance.Pods[0].Status.Conditions {
+			if condition.Type == corev1.PodReady && condition.Status == corev1.ConditionTrue {
+				// If the pod has not been ready for the grace period, wait longer
+				if time.Since(condition.LastTransitionTime.Time) < backupReadinessGracePeriod {
+					r.Recorder.Event(postgresCluster, corev1.EventTypeNormal, "WaitingForBackupReadiness",
+						fmt.Sprintf("Waiting %s after PostgreSQL became ready before initiating replica-create backup",
+							backupReadinessGracePeriod))
+					// Return without error, will be reconciled again
+					return nil
+				}
+				// Grace period has passed, continue with backup
+				break
+			}
+		}
 	}
 
 	// determine if the replica create repo is ready using the "PGBackRestReplicaRepoReady" condition
