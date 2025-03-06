@@ -645,9 +645,18 @@ func (r *Reconciler) generateRepoHostIntent(ctx context.Context, postgresCluster
 		postgresCluster.Spec.ImagePullPolicy,
 		&repo.Spec.Template)
 
+	// Add sidecars from the spec if defined
+	if pgbackrest := postgresCluster.Spec.Backups.PGBackRest; pgbackrest.RepoHost != nil && 
+		len(pgbackrest.RepoHost.Sidecars) > 0 {
+		// Add each sidecar container to the pod spec
+		repo.Spec.Template.Spec.Containers = append(
+			repo.Spec.Template.Spec.Containers, 
+			pgbackrest.RepoHost.Sidecars...)
+	}
+
 	resources := corev1.ResourceRequirements{}
 	if postgresCluster.Spec.Backups.PGBackRest.RepoHost != nil {
-		resources = postgresCluster.Spec.Backups.PGBackRest.RepoHost.Resources
+			resources = postgresCluster.Spec.Backups.PGBackRest.RepoHost.Resources
 	}
 	sizeLimit := getTMPSizeLimit(repo.Labels[naming.LabelVersion], resources)
 

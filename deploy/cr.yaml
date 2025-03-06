@@ -379,11 +379,23 @@ spec:
                    matchLabels:
                      postgres-operator.crunchydata.com/data: pgbackrest
                  topologyKey: kubernetes.io/hostname
+        env:
+        - name: AWS_WEB_IDENTITY_TOKEN_FILE
+          value: "/var/run/secrets/eks.amazonaws.com/serviceaccount/token"
+        - name: AWS_ROLE_ARN
+          value: "arn:aws:iam::123456789012:role/my-role"
+        # Add sidecars to the repo host pod
+        sidecars:
+        - name: s3-helper
+          image: amazon/aws-cli:latest
+          command: ["sleep"]
+          args: ["infinity"]
+          resources:
+            limits:
+              cpu: 100m
+              memory: 128Mi
 #        tolerations:
 #        - effect: NoSchedule
-#          key: role
-#          operator: Equal
-#          value: connection-poolers
 #        priorityClassName: high-priority
 #
 #        topologySpreadConstraints:

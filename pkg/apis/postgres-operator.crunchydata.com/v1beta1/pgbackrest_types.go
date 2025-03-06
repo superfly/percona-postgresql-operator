@@ -242,6 +242,10 @@ type PGBackRestRepoHost struct {
 	// +optional
 	Environment []corev1.EnvVar `json:"env,omitempty"`
 
+	// Defines sidecars that will be added to the repository host pod
+	// +optional
+	Sidecars []corev1.Container `json:"sidecars,omitempty"`
+
 	// ConfigMap containing custom SSH configuration.
 	// Deprecated: Repository hosts use mTLS for encryption, authentication, and authorization.
 	// +optional
