@@ -325,6 +325,12 @@ func addServerContainerAndVolume(
 		container.Resources = *resources
 	}
 
+	// Add environment variables from the PGBackRestRepoHost specification if available
+	if cluster.Spec.Backups.PGBackRest.RepoHost != nil && 
+		len(cluster.Spec.Backups.PGBackRest.RepoHost.Environment) > 0 {
+		container.Env = append(container.Env, cluster.Spec.Backups.PGBackRest.RepoHost.Environment...)
+	}
+
 	// Mount PostgreSQL volumes that are present in pod.
 	postgresMounts := map[string]corev1.VolumeMount{
 		postgres.DataVolumeMount().Name: postgres.DataVolumeMount(),

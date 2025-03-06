@@ -236,6 +236,12 @@ type PGBackRestRepoHost struct {
 	// +optional
 	TopologySpreadConstraints []corev1.TopologySpreadConstraint `json:"topologySpreadConstraints,omitempty"`
 
+	// Environment variables to set in the pgBackRest repository host container.
+	// These can be used when working with external repositories, such as S3, when using IAM roles and setting
+	// variables like AWS_WEB_IDENTITY_TOKEN_FILE
+	// +optional
+	Environment []corev1.EnvVar `json:"env,omitempty"`
+
 	// ConfigMap containing custom SSH configuration.
 	// Deprecated: Repository hosts use mTLS for encryption, authentication, and authorization.
 	// +optional
