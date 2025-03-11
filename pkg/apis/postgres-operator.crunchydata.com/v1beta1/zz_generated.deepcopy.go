@@ -1047,6 +1047,20 @@ func (in *PGBackRestRepoHost) DeepCopyInto(out *PGBackRestRepoHost) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.Environment != nil {
+		in, out := &in.Environment, &out.Environment
+		*out = make([]corev1.EnvVar, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
+	if in.Sidecars != nil {
+		in, out := &in.Sidecars, &out.Sidecars
+		*out = make([]corev1.Container, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
 	if in.SSHConfiguration != nil {
 		in, out := &in.SSHConfiguration, &out.SSHConfiguration
 		*out = new(corev1.ConfigMapProjection)

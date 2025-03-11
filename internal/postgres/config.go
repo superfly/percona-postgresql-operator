@@ -128,7 +128,7 @@ func WALStorage(instance *v1beta1.PostgresInstanceSetSpec) string {
 // Environment returns the environment variables required to invoke PostgreSQL
 // utilities.
 func Environment(cluster *v1beta1.PostgresCluster) []corev1.EnvVar {
-	return []corev1.EnvVar{
+	env := []corev1.EnvVar{
 		// - https://www.postgresql.org/docs/current/reference-server.html
 		{
 			Name:  "PGDATA",
@@ -158,6 +158,8 @@ func Environment(cluster *v1beta1.PostgresCluster) []corev1.EnvVar {
 			Value: "/tmp",
 		},
 	}
+
+	return env
 }
 
 // reloadCommand returns an entrypoint that convinces PostgreSQL to reload

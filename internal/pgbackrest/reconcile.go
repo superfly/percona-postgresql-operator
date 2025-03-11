@@ -325,10 +325,19 @@ func addServerContainerAndVolume(
 		container.Resources = *resources
 	}
 
-	// Add environment variables from the PGBackRestRepoHost specification if available
-	if cluster.Spec.Backups.PGBackRest.RepoHost != nil && 
-		len(cluster.Spec.Backups.PGBackRest.RepoHost.Environment) > 0 {
-		container.Env = append(container.Env, cluster.Spec.Backups.PGBackRest.RepoHost.Environment...)
+	// Check for the pgBackRest repo host environment variables secret in annotations
+	if cluster.Annotations != nil {
+		if value, ok := cluster.Annotations["percona.com/pgbackrest-repo-host-env-vars-secret"]; ok && value != "" {
+			container.EnvFrom = []corev1.EnvFromSource{
+				{
+					SecretRef: &corev1.SecretEnvSource{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: value,
+						},
+					},
+				},
+			}
+		}
 	}
 
 	// Mount PostgreSQL volumes that are present in pod.

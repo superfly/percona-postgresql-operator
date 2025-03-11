@@ -17,6 +17,7 @@ package postgres
 
 import (
 	"context"
+	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -187,6 +188,30 @@ func InstancePod(ctx context.Context,
 
 		SecurityContext: initialize.RestrictedSecurityContext(inCluster.CompareVersion("2.5.0") >= 0),
 		VolumeMounts:    dbContainerMounts,
+	}
+
+	// Add environment variables from secret if specified in annotations
+	// Look for the annotation that would be set by the Percona controller
+	var envVarsSecret string
+
+	// First check for instance-specific secret
+	if value, ok := inCluster.Annotations[fmt.Sprintf("percona.com/instance-%s-env-vars-secret", inInstanceSpec.Name)]; ok && value != "" {
+		envVarsSecret = value
+	} else if value, ok := inCluster.Annotations["percona.com/env-vars-secret"]; ok && value != "" {
+		// Fall back to cluster-level secret
+		envVarsSecret = value
+	}
+
+	if envVarsSecret != "" {
+		container.EnvFrom = []corev1.EnvFromSource{
+			{
+				SecretRef: &corev1.SecretEnvSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: envVarsSecret,
+					},
+				},
+			},
+		}
 	}
 
 	reloader := corev1.Container{

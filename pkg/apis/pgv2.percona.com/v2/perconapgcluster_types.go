@@ -2,6 +2,7 @@ package v2
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	gover "github.com/hashicorp/go-version"
@@ -60,6 +61,11 @@ type PerconaPGClusterSpec struct {
 	// +optional
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=1
 	Image string `json:"image,omitempty"`
+
+	// The name of a secret containing environment variables to be set in the PostgreSQL
+	// database container, in addition to default environment variables.
+	// +optional
+	EnvVarsSecret string `json:"envVarsSecret,omitempty"`
 
 	// ImagePullPolicy is used to determine when Kubernetes will attempt to
 	// pull (download) container images.
@@ -330,6 +336,32 @@ func (cr *PerconaPGCluster) ToCrunchy(ctx context.Context, postgresCluster *crun
 	postgresCluster.Spec.Extensions.PGStatMonitor = *cr.Spec.Extensions.BuiltIn.PGStatMonitor
 	postgresCluster.Spec.Extensions.PGAudit = *cr.Spec.Extensions.BuiltIn.PGAudit
 
+	// Add annotations for environment variables from secrets
+	if cr.Spec.EnvVarsSecret != "" {
+		if postgresCluster.Annotations == nil {
+			postgresCluster.Annotations = make(map[string]string)
+		}
+		postgresCluster.Annotations["percona.com/env-vars-secret"] = cr.Spec.EnvVarsSecret
+	}
+
+	// Add annotations for instance-specific environment variables from secrets
+	for _, instance := range cr.Spec.InstanceSets {
+		if instance.EnvVarsSecret != "" {
+			if postgresCluster.Annotations == nil {
+				postgresCluster.Annotations = make(map[string]string)
+			}
+			postgresCluster.Annotations[fmt.Sprintf("percona.com/instance-%s-env-vars-secret", instance.Name)] = instance.EnvVarsSecret
+		}
+	}
+
+	// Add annotation for pgBackRest repo host environment variables from secret
+	if cr.Spec.Backups.PGBackRest.RepoHost != nil && cr.Spec.Backups.PGBackRest.RepoHost.EnvVarsSecret != "" {
+		if postgresCluster.Annotations == nil {
+			postgresCluster.Annotations = make(map[string]string)
+		}
+		postgresCluster.Annotations["percona.com/pgbackrest-repo-host-env-vars-secret"] = cr.Spec.Backups.PGBackRest.RepoHost.EnvVarsSecret
+	}
+
 	return postgresCluster, nil
 }
 
@@ -406,11 +438,9 @@ type Backups struct {
 
 func (b Backups) ToCrunchy(version string) crunchyv1beta1.Backups {
 	var sc *crunchyv1beta1.PGBackRestSidecars
-
-	sc = b.PGBackRest.Containers
-
-	currVersion, err := gover.NewVersion(version)
-	if err == nil && currVersion.LessThan(gover.Must(gover.NewVersion("2.4.0"))) {
+	if b.PGBackRest.Containers != nil {
+		sc = b.PGBackRest.Containers
+	} else if b.PGBackRest.Sidecars != nil {
 		sc = b.PGBackRest.Sidecars
 	}
 
@@ -422,7 +452,7 @@ func (b Backups) ToCrunchy(version string) crunchyv1beta1.Backups {
 			Image:         b.PGBackRest.Image,
 			Jobs:          b.PGBackRest.Jobs,
 			Repos:         b.PGBackRest.Repos,
-			RepoHost:      b.PGBackRest.RepoHost,
+			RepoHost:      b.PGBackRest.RepoHost.ToCrunchy(),
 			Manual:        b.PGBackRest.Manual,
 			Restore:       b.PGBackRest.Restore,
 			Sidecars:      sc,
@@ -468,7 +498,7 @@ type PGBackRestArchive struct {
 	// applicable if at least one "volume" (i.e. PVC-based) repository is defined in the "repos"
 	// section, therefore enabling a dedicated repository host Deployment.
 	// +optional
-	RepoHost *crunchyv1beta1.PGBackRestRepoHost `json:"repoHost,omitempty"`
+	RepoHost *PGBackRestRepoHost `json:"repoHost,omitempty"`
 
 	// Defines details for manual pgBackRest backup Jobs
 	// +optional
@@ -697,6 +727,12 @@ type PGInstanceSetSpec struct {
 	// +kubebuilder:validation:Required
 	DataVolumeClaimSpec corev1.PersistentVolumeClaimSpec `json:"dataVolumeClaimSpec"`
 
+	// The name of a secret containing environment variables to be set in the PostgreSQL
+	// database container, in addition to default environment variables.
+	// If specified, this overrides the cluster-level envVarsSecret.
+	// +optional
+	EnvVarsSecret string `json:"envVarsSecret,omitempty"`
+
 	// The list of tablespaces volumes to mount for this postgrescluster
 	// This field requires enabling TablespaceVolumes feature gate
 	// +listType=map
@@ -720,19 +756,19 @@ func (p PGInstanceSetSpec) ToCrunchy() crunchyv1beta1.PostgresInstanceSetSpec {
 		Name:                      p.Name,
 		Affinity:                  p.Affinity,
 		Containers:                p.Sidecars,
-		Sidecars:                  p.Containers,
 		InitContainers:            p.InitContainers,
+		WALVolumeClaimSpec:        p.WALVolumeClaimSpec,
+		DataVolumeClaimSpec:       p.DataVolumeClaimSpec,
 		PriorityClassName:         p.PriorityClassName,
 		Replicas:                  p.Replicas,
 		MinAvailable:              p.MinAvailable,
 		Resources:                 p.Resources,
 		Tolerations:               p.Tolerations,
 		TopologySpreadConstraints: p.TopologySpreadConstraints,
-		WALVolumeClaimSpec:        p.WALVolumeClaimSpec,
-		DataVolumeClaimSpec:       p.DataVolumeClaimSpec,
 		VolumeMounts:              p.VolumeMounts,
 		SecurityContext:           p.SecurityContext,
 		TablespaceVolumes:         p.TablespaceVolumes,
+		Sidecars:                  p.Containers,
 	}
 }
 
@@ -952,3 +988,75 @@ const (
 const (
 	UserMonitoring = "monitor"
 )
+
+type PGBackRestRepoHost struct {
+	// Scheduling constraints of the Dedicated repo host pod.
+	// Changing this value causes repo host to restart.
+	// More info: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node
+	// +optional
+	Affinity *corev1.Affinity `json:"affinity,omitempty"`
+
+	// Priority class name for the pgBackRest repo host pod. Changing this value
+	// causes PostgreSQL to restart.
+	// More info: https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/
+	// +optional
+	PriorityClassName *string `json:"priorityClassName,omitempty"`
+
+	// Resource requirements for a pgBackRest repository host
+	// +optional
+	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
+
+	// Tolerations of a PgBackRest repo host pod. Changing this value causes a restart.
+	// More info: https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration
+	// +optional
+	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
+
+	// Topology spread constraints of a Dedicated repo host pod. Changing this
+	// value causes the repo host to restart.
+	// More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-topology-spread-constraints/
+	// +optional
+	TopologySpreadConstraints []corev1.TopologySpreadConstraint `json:"topologySpreadConstraints,omitempty"`
+
+	// The name of a secret containing environment variables to be set in the pgBackRest
+	// repository host container. This replaces the direct environment variable specification.
+	// +optional
+	EnvVarsSecret string `json:"envVarsSecret,omitempty"`
+
+	// Defines sidecars that will be added to the repository host pod
+	// +optional
+	Sidecars []corev1.Container `json:"sidecars,omitempty"`
+
+	// ConfigMap containing custom SSH configuration.
+	// Deprecated: Repository hosts use mTLS for encryption, authentication, and authorization.
+	// +optional
+	SSHConfiguration *corev1.ConfigMapProjection `json:"sshConfigMap,omitempty"`
+
+	// Secret containing custom SSH keys.
+	// Deprecated: Repository hosts use mTLS for encryption, authentication, and authorization.
+	// +optional
+	SSHSecret *corev1.SecretProjection `json:"sshSecret,omitempty"`
+
+	// SecurityContext defines the security settings for PGBackRest pod.
+	// +optional
+	SecurityContext *corev1.PodSecurityContext `json:"securityContext,omitempty"`
+}
+
+// ToCrunchy converts the Percona PGBackRestRepoHost to a Crunchy PGBackRestRepoHost
+func (r *PGBackRestRepoHost) ToCrunchy() *crunchyv1beta1.PGBackRestRepoHost {
+	if r == nil {
+		return nil
+	}
+
+	return &crunchyv1beta1.PGBackRestRepoHost{
+		Affinity:                  r.Affinity,
+		PriorityClassName:         r.PriorityClassName,
+		Resources:                 r.Resources,
+		Tolerations:               r.Tolerations,
+		TopologySpreadConstraints: r.TopologySpreadConstraints,
+		Environment:               []corev1.EnvVar{}, // Empty since we're using EnvVarsSecret
+		Sidecars:                  r.Sidecars,
+		SSHConfiguration:          r.SSHConfiguration,
+		SSHSecret:                 r.SSHSecret,
+		SecurityContext:           r.SecurityContext,
+	}
+}
