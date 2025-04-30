@@ -108,6 +108,13 @@ func InstancePod(ctx context.Context,
 	// "kubernetes.labels" settings.
 	outInstancePod.Labels[naming.LabelPatroni] = naming.PatroniScope(inCluster)
 
+	// Add annotations to get metrics from the Pod
+	if outInstancePod.Annotations == nil {
+		outInstancePod.Annotations = make(map[string]string)
+	}
+	outInstancePod.Annotations["prometheus.io/scrape"] = "true"
+	outInstancePod.Annotations["prometheus.io/port"] = "8008"
+
 	var container *corev1.Container
 	for i := range outInstancePod.Spec.Containers {
 		if outInstancePod.Spec.Containers[i].Name == naming.ContainerDatabase {
