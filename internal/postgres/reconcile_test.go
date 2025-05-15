@@ -124,8 +124,9 @@ func TestInstancePod(t *testing.T) {
 
 	assert.Assert(t, cmp.MarshalMatches(pod, `
 containers:
-  - command:
-    - echo "for pid in $(pgrep -f \"/usr/pgsql-16/bin/postgres\"); do
+- command:
+  - |-
+    echo "for pid in $(pgrep -f \"/usr/pgsql-16/bin/postgres\"); do
               current=$(cat /proc/$pid/oom_score_adj 2>/dev/null || echo \"\")
               if [ \"$current\" != \"-900\" ]; then
                 echo \"adjusting oom score for pid $pid\"
@@ -135,7 +136,7 @@ containers:
 
             sleep 30
           done" > /oom-fixer.sh && chmod +x /oom-fixer.sh
-    - /oom-fixer.sh & /usr/bin/patroni
+  - /oom-fixer.sh & /usr/bin/patroni
   env:
   - name: PGDATA
     value: /pgdata/pg11
