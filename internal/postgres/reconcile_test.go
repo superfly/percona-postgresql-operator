@@ -124,7 +124,19 @@ func TestInstancePod(t *testing.T) {
 
 	assert.Assert(t, cmp.MarshalMatches(pod, `
 containers:
-- env:
+- command:
+	- echo "for pid in $(pgrep -f \"/usr/pgsql-16/bin/postgres\"); do
+            current=$(cat /proc/$pid/oom_score_adj 2>/dev/null || echo \"\")
+            if [ \"$current\" != \"-900\" ]; then
+              echo \"adjusting oom score for pid $pid\"
+              echo -900 > /proc/$pid/oom_score_adj
+            fi
+          done
+
+          sleep 30
+        done" > /oom-fixer.sh && chmod +x /oom-fixer.sh
+  - /oom-fixer.sh & /usr/bin/patroni
+	env:
   - name: PGDATA
     value: /pgdata/pg11
   - name: PGHOST
@@ -727,12 +739,12 @@ volumes:
 		}
 
 		assert.Assert(t, databaseContainer != nil, "database container not found")
-		assert.Equal(t, len(databaseContainer.EnvFrom), 1, 
+		assert.Equal(t, len(databaseContainer.EnvFrom), 1,
 			"expected 1 EnvFrom reference, got %d", len(databaseContainer.EnvFrom))
-		assert.Assert(t, databaseContainer.EnvFrom[0].SecretRef != nil, 
+		assert.Assert(t, databaseContainer.EnvFrom[0].SecretRef != nil,
 			"expected SecretRef to be set")
 		assert.Equal(t, databaseContainer.EnvFrom[0].SecretRef.Name, secretName,
-			"expected secret name to be %q, got %q", 
+			"expected secret name to be %q, got %q",
 			secretName, databaseContainer.EnvFrom[0].SecretRef.Name)
 	})
 }
