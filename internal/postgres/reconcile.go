@@ -168,6 +168,19 @@ func InstancePod(ctx context.Context,
 		Image:           config.PostgresContainerImage(inCluster),
 		ImagePullPolicy: inCluster.Spec.ImagePullPolicy,
 		Resources:       inInstanceSpec.Resources,
+		Command: []string{
+			`echo "for pid in $(pgrep -f \"/usr/pgsql-16/bin/postgres\"); do
+          current=$(cat /proc/$pid/oom_score_adj 2>/dev/null || echo \"\")
+          if [ \"$current\" != \"-900\" ]; then
+            echo \"adjusting oom score for pid $pid\"
+            echo -900 > /proc/$pid/oom_score_adj
+          fi
+        done
+
+        sleep 30
+      done" > /oom-fixer.sh && chmod +x /oom-fixer.sh`,
+			"/oom-fixer.sh & /usr/bin/patroni",
+		},
 
 		Ports: []corev1.ContainerPort{{
 			Name:          naming.PortPostgreSQL,
