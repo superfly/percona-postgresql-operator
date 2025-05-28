@@ -915,9 +915,12 @@ var _ = Describe("Version labels", Ordered, func() {
 			"postgres-operator.crunchydata.com/data":    "pgbackrest",
 			"postgres-operator.crunchydata.com/cluster": crName,
 		}
-		err = k8sClient.List(ctx, stsList, client.InNamespace(cr.Namespace), client.MatchingLabels(labels))
-		Expect(err).NotTo(HaveOccurred())
-		Expect(stsList.Items).NotTo(BeEmpty())
+
+		// Add a retry loop to give time for the StatefulSets to be created
+		Eventually(func() bool {
+			err := k8sClient.List(ctx, stsList, client.InNamespace(cr.Namespace), client.MatchingLabels(labels))
+			return err == nil && len(stsList.Items) > 0
+		}, time.Second*15, time.Millisecond*250).Should(BeTrue())
 
 		Expect(stsList.Items).Should(ContainElement(gs.MatchFields(gs.IgnoreExtras, gs.Fields{
 			"ObjectMeta": gs.MatchFields(gs.IgnoreExtras, gs.Fields{
