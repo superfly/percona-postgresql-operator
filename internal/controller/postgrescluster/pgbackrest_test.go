@@ -2774,7 +2774,7 @@ func TestGenerateRepoHostIntent(t *testing.T) {
 	})
 
 	t.Run("Environment From Secret", func(t *testing.T) {
-		secretName := "my-pgbackrest-env-secret"
+		secretName := "my-pgbackrest-env-secret" // #nosec G101
 		cluster := &v1beta1.PostgresCluster{
 			Spec: v1beta1.PostgresClusterSpec{
 				Backups: v1beta1.Backups{
