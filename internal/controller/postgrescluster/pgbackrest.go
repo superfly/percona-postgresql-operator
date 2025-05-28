@@ -1681,26 +1681,103 @@ func (r *Reconciler) reconcilePostgresClusterDataSource(ctx context.Context,
 	// First, copy the restore configuration from the source cluster and ensure secrets exist
 	// before proceeding with other operations
 	sourceCluster := &v1beta1.PostgresCluster{}
-	if dataSource.ClusterName != "" && dataSource.ClusterNamespace != "" {
+	var sourceClusterFound bool = false
+	if dataSource.ClusterName != "" {
+		// Use the same namespace as the target cluster if ClusterNamespace is not specified
+		sourceNamespace := cluster.Namespace
+		if dataSource.ClusterNamespace != "" {
+			sourceNamespace = dataSource.ClusterNamespace
+		}
+
 		if err := r.Client.Get(ctx, types.NamespacedName{
 			Name:      dataSource.ClusterName,
-			Namespace: dataSource.ClusterNamespace,
+			Namespace: sourceNamespace,
 		}, sourceCluster); err != nil {
-			// If source is not found, proceed with the restore using nil for sourceCluster
-			if !apierrors.IsNotFound(err) {
-				return errors.WithStack(err)
+			if apierrors.IsNotFound(err) {
+				// Source cluster not found - emit event and return without creating resources
+				r.Recorder.Event(cluster, corev1.EventTypeWarning, "InvalidDataSource",
+					fmt.Sprintf("Source cluster '%s' not found in namespace '%s'",
+						dataSource.ClusterName, sourceNamespace))
+				return nil
 			}
-			sourceCluster = nil
+			return errors.WithStack(err)
+		}
+		sourceClusterFound = true
+
+		// Validate that the requested repository exists in the source cluster
+		if dataSource.RepoName != "" {
+			repoFound := false
+			for _, repo := range sourceCluster.Spec.Backups.PGBackRest.Repos {
+				if repo.Name == dataSource.RepoName {
+					repoFound = true
+					break
+				}
+			}
+			if !repoFound {
+				// Source repo not found - emit event and proceed with config only
+				r.Recorder.Event(cluster, corev1.EventTypeWarning, "InvalidDataSource",
+					fmt.Sprintf("Repository '%s' not found in source cluster '%s'",
+						dataSource.RepoName, dataSource.ClusterName))
+				// Still copy configuration but don't create job or volumes
+				if err := r.copyRestoreConfiguration(ctx, cluster, sourceCluster); err != nil {
+					return err
+				}
+				return nil
+			}
 		}
 	} else {
 		sourceCluster = nil
 	}
 
+	// Validate restore options to prevent unsafe configurations
+	var invalidOptions bool = false
+	if len(dataSource.Options) > 0 {
+		for _, option := range dataSource.Options {
+			// Check for invalid options that could compromise the restore
+			if strings.Contains(option, "--stanza") ||
+				strings.Contains(option, "--pg1-path") ||
+				strings.HasPrefix(option, "--repo=") ||
+				strings.HasPrefix(option, "--repo ") {
+				// Invalid option - emit event and mark as invalid
+				r.Recorder.Event(cluster, corev1.EventTypeWarning, "InvalidDataSource",
+					fmt.Sprintf("Invalid restore option: %s", option))
+				invalidOptions = true
+				break
+			}
+		}
+	}
+
 	// Copy configuration from source cluster if it exists
-	if sourceCluster != nil {
+	if sourceClusterFound {
 		if err := r.copyRestoreConfiguration(ctx, cluster, sourceCluster); err != nil {
 			return err
 		}
+	}
+
+	// For invalid options, still create config and volumes but not the restore job
+	if invalidOptions {
+		// Create a fake StatefulSet for reconciling the PGBackRest secret
+		fakeRepoHost := &appsv1.StatefulSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      cluster.Name + "-repo-host",
+				Namespace: cluster.Namespace,
+			},
+		}
+
+		// Ensure the PGBackRest secret exists
+		if err := r.reconcilePGBackRestSecret(ctx, cluster, fakeRepoHost, rootCA); err != nil {
+			return err
+		}
+
+		// Create volumes but not the restore job
+		fakeSTS := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{
+			Name:      instanceName,
+			Namespace: cluster.GetNamespace(),
+		}}
+		if _, err := r.reconcilePostgresDataVolume(ctx, cluster, instanceSet, fakeSTS, clusterVolumes, sourceCluster); err != nil {
+			return errors.WithStack(err)
+		}
+		return nil
 	}
 
 	// Create a fake StatefulSet for reconciling the PGBackRest secret
