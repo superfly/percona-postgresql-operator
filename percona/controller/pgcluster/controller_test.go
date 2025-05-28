@@ -1595,7 +1595,7 @@ var _ = Describe("Validate TLS", Ordered, func() {
 			err := reconciler(cr).validateTLS(ctx, cr)
 			Expect(err).NotTo(HaveOccurred())
 		})
-	})
+	}
 	Context("check validation for cr.Spec.Secrets.CustomTLSSecret when cr.Spec.Secrets.CustomRootCATLSSecret is specified", func() {
 		cr := cr.DeepCopy()
 		secretName := "custom-tls-secret-with-ca" //nolint:gosec
