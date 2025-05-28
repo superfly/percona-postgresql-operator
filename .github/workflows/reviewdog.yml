@@ -85,5 +85,5 @@ jobs:
         id: extract_branch
       - uses: actions/checkout@v4
       - run: |
-          make generate VERSION=$(echo ${{ steps.extract_branch.outputs.branch }} | tr '.' '-')
+          make generate VERSION=flyio-2-6-0
           git diff --exit-code
