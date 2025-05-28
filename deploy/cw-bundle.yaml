@@ -2364,7 +2364,7 @@ spec:
                                   It is not possible to share the same volume among privileged and unprivileged Pods.
                                   Eligible volumes are in-tree FibreChannel and iSCSI volumes, and all CSI volumes
                                   whose CSI driver announces SELinux support by setting spec.seLinuxMount: true in their
-                                  CSIDriver instance. Other volumes are always re-labelled recursively.
+                                  CSIDriver instance. Other volumes are always re-labeled recursively.
                                   "MountOption" value is allowed only when SELinuxMount feature gate is enabled.
 
                                   If not specified and SELinuxMount feature gate is enabled, "MountOption" is used.
@@ -6599,7 +6599,7 @@ spec:
                                   It is not possible to share the same volume among privileged and unprivileged Pods.
                                   Eligible volumes are in-tree FibreChannel and iSCSI volumes, and all CSI volumes
                                   whose CSI driver announces SELinux support by setting spec.seLinuxMount: true in their
-                                  CSIDriver instance. Other volumes are always re-labelled recursively.
+                                  CSIDriver instance. Other volumes are always re-labeled recursively.
                                   "MountOption" value is allowed only when SELinuxMount feature gate is enabled.
 
                                   If not specified and SELinuxMount feature gate is enabled, "MountOption" is used.
@@ -14655,7 +14655,7 @@ spec:
                             It is not possible to share the same volume among privileged and unprivileged Pods.
                             Eligible volumes are in-tree FibreChannel and iSCSI volumes, and all CSI volumes
                             whose CSI driver announces SELinux support by setting spec.seLinuxMount: true in their
-                            CSIDriver instance. Other volumes are always re-labelled recursively.
+                            CSIDriver instance. Other volumes are always re-labeled recursively.
                             "MountOption" value is allowed only when SELinuxMount feature gate is enabled.
 
                             If not specified and SELinuxMount feature gate is enabled, "MountOption" is used.
@@ -19019,7 +19019,7 @@ spec:
                               It is not possible to share the same volume among privileged and unprivileged Pods.
                               Eligible volumes are in-tree FibreChannel and iSCSI volumes, and all CSI volumes
                               whose CSI driver announces SELinux support by setting spec.seLinuxMount: true in their
-                              CSIDriver instance. Other volumes are always re-labelled recursively.
+                              CSIDriver instance. Other volumes are always re-labeled recursively.
                               "MountOption" value is allowed only when SELinuxMount feature gate is enabled.
 
                               If not specified and SELinuxMount feature gate is enabled, "MountOption" is used.
@@ -30104,7 +30104,7 @@ spec:
                                   It is not possible to share the same volume among privileged and unprivileged Pods.
                                   Eligible volumes are in-tree FibreChannel and iSCSI volumes, and all CSI volumes
                                   whose CSI driver announces SELinux support by setting spec.seLinuxMount: true in their
-                                  CSIDriver instance. Other volumes are always re-labelled recursively.
+                                  CSIDriver instance. Other volumes are always re-labeled recursively.
                                   "MountOption" value is allowed only when SELinuxMount feature gate is enabled.
 
                                   If not specified and SELinuxMount feature gate is enabled, "MountOption" is used.
@@ -34339,7 +34339,7 @@ spec:
                                   It is not possible to share the same volume among privileged and unprivileged Pods.
                                   Eligible volumes are in-tree FibreChannel and iSCSI volumes, and all CSI volumes
                                   whose CSI driver announces SELinux support by setting spec.seLinuxMount: true in their
-                                  CSIDriver instance. Other volumes are always re-labelled recursively.
+                                  CSIDriver instance. Other volumes are always re-labeled recursively.
                                   "MountOption" value is allowed only when SELinuxMount feature gate is enabled.
 
                                   If not specified and SELinuxMount feature gate is enabled, "MountOption" is used.
@@ -44066,7 +44066,7 @@ spec:
                             It is not possible to share the same volume among privileged and unprivileged Pods.
                             Eligible volumes are in-tree FibreChannel and iSCSI volumes, and all CSI volumes
                             whose CSI driver announces SELinux support by setting spec.seLinuxMount: true in their
-                            CSIDriver instance. Other volumes are always re-labelled recursively.
+                            CSIDriver instance. Other volumes are always re-labeled recursively.
                             "MountOption" value is allowed only when SELinuxMount feature gate is enabled.
 
                             If not specified and SELinuxMount feature gate is enabled, "MountOption" is used.
@@ -48551,7 +48551,7 @@ spec:
                               It is not possible to share the same volume among privileged and unprivileged Pods.
                               Eligible volumes are in-tree FibreChannel and iSCSI volumes, and all CSI volumes
                               whose CSI driver announces SELinux support by setting spec.seLinuxMount: true in their
-                              CSIDriver instance. Other volumes are always re-labelled recursively.
+                              CSIDriver instance. Other volumes are always re-labeled recursively.
                               "MountOption" value is allowed only when SELinuxMount feature gate is enabled.
 
                               If not specified and SELinuxMount feature gate is enabled, "MountOption" is used.
