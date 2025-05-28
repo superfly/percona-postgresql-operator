@@ -1678,10 +1678,29 @@ func (r *Reconciler) reconcilePostgresClusterDataSource(ctx context.Context,
 		return nil
 	}
 
-	// First, create the restore configuration and ensure secrets exist
+	// First, copy the restore configuration from the source cluster and ensure secrets exist
 	// before proceeding with other operations
-	if err := r.createRestoreConfig(ctx, cluster, configHash); err != nil {
-		return err
+	sourceCluster := &v1beta1.PostgresCluster{}
+	if dataSource.ClusterName != "" && dataSource.ClusterNamespace != "" {
+		if err := r.Client.Get(ctx, types.NamespacedName{
+			Name:      dataSource.ClusterName,
+			Namespace: dataSource.ClusterNamespace,
+		}, sourceCluster); err != nil {
+			// If source is not found, proceed with the restore using nil for sourceCluster
+			if !apierrors.IsNotFound(err) {
+				return errors.WithStack(err)
+			}
+			sourceCluster = nil
+		}
+	} else {
+		sourceCluster = nil
+	}
+
+	// Copy configuration from source cluster if it exists
+	if sourceCluster != nil {
+		if err := r.copyRestoreConfiguration(ctx, cluster, sourceCluster); err != nil {
+			return err
+		}
 	}
 
 	// Create a fake StatefulSet for reconciling the PGBackRest secret
@@ -1698,21 +1717,6 @@ func (r *Reconciler) reconcilePostgresClusterDataSource(ctx context.Context,
 	}
 
 	// Now proceed with volumes and other resources for the restore
-	sourceCluster := &v1beta1.PostgresCluster{}
-	if dataSource.ClusterName != "" && dataSource.ClusterNamespace != "" {
-		if err := r.Client.Get(ctx, types.NamespacedName{
-			Name:      dataSource.ClusterName,
-			Namespace: dataSource.ClusterNamespace,
-		}, sourceCluster); err != nil {
-			// If source is not found, proceed with the restore using nil for sourceCluster
-			if !apierrors.IsNotFound(err) {
-				return errors.WithStack(err)
-			}
-			sourceCluster = nil
-		}
-	} else {
-		sourceCluster = nil
-	}
 
 	// Define a fake STS to use when calling the reconcile functions below since when
 	// bootstrapping the cluster it will not exist until after the restore is complete.
