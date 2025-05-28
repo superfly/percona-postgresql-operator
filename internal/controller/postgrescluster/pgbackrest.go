@@ -1636,6 +1636,11 @@ func (r *Reconciler) reconcilePostgresClusterDataSource(ctx context.Context,
 	backupsSpecFound bool,
 ) error {
 
+	// Check if dataSource is nil - this can happen in some test scenarios
+	if dataSource == nil {
+		return errors.New("PostgresClusterDataSource is nil")
+	}
+
 	// Ensure the proper instance and instance set can be identified via the status.  The
 	// StartupInstance and StartupInstanceSet values should be populated when the cluster
 	// is being prepared for a restore, and should therefore always exist at this point.
@@ -1866,6 +1871,11 @@ func (r *Reconciler) reconcileCloudBasedDataSource(ctx context.Context,
 // in the data field, for use with restoring from cloud-based data sources
 func (r *Reconciler) createRestoreConfig(ctx context.Context, postgresCluster *v1beta1.PostgresCluster,
 	configHash string) error {
+
+	// Check for nil DataSource or PGBackRest to prevent panic
+	if postgresCluster.Spec.DataSource == nil || postgresCluster.Spec.DataSource.PGBackRest == nil {
+		return errors.New("PostgresCluster DataSource or DataSource.PGBackRest is nil")
+	}
 
 	postgresClusterWithMockedBackups := postgresCluster.DeepCopy()
 	postgresClusterWithMockedBackups.Spec.Backups.PGBackRest.Global = postgresCluster.Spec.
