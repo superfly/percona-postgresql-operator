@@ -62,12 +62,32 @@ func (m *CustomManager) Add(r manager.Runnable) error {
 	return nil
 }
 
+func GetReadyRepoHostPod(ctx context.Context, c client.Client, clusterName, namespace string) (*corev1.Pod, error) {
+	pods := &corev1.PodList{}
+	selector, err := naming.AsSelector(naming.ClusterRepoHost(clusterName))
+	if err != nil {
+		return nil, err
+	}
+	if err := c.List(ctx, pods, client.InNamespace(namespace), client.MatchingLabelsSelector{Selector: selector}); err != nil {
+		return nil, errors.Wrap(err, "list pods")
+	}
+
+	for _, pod := range pods.Items {
+		if pod.Status.Phase != corev1.PodRunning {
+			continue
+		}
+		return &pod, nil
+	}
+	return nil, errors.New("no running repo-host found")
+}
+
 func GetReadyInstancePod(ctx context.Context, c client.Client, clusterName, namespace string) (*corev1.Pod, error) {
 	pods := &corev1.PodList{}
 	selector, err := naming.AsSelector(naming.ClusterInstances(clusterName))
 	if err != nil {
 		return nil, err
 	}
+	// Mark (AG): Do soemthing similar for repo-host.
 	if err := c.List(ctx, pods, client.InNamespace(namespace), client.MatchingLabelsSelector{Selector: selector}); err != nil {
 		return nil, errors.Wrap(err, "list pods")
 	}

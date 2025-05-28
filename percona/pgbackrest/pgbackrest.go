@@ -57,7 +57,8 @@ func GetInfo(ctx context.Context, pod *corev1.Pod, repoName string) (InfoOutput,
 		return InfoOutput{}, errors.Wrap(err, "failed to create client")
 	}
 
-	if err := c.Exec(ctx, pod, naming.ContainerDatabase, nil, stdout, stderr, "pgbackrest", "info", "--output=json", "--repo="+strings.TrimPrefix(repoName, "repo")); err != nil {
+	// naming.PGBackRestRepoContainerName
+	if err := c.Exec(ctx, pod, naming.ContainerPGBackRest, nil, stdout, stderr, "pgbackrest", "info", "--output=json", "--repo="+strings.TrimPrefix(repoName, "repo")); err != nil {
 		return InfoOutput{}, errors.Wrapf(err, "exec: %s", stderr.String())
 	}
 

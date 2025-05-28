@@ -488,9 +488,12 @@ func updatePGBackrestInfo(ctx context.Context, c client.Client, pod *corev1.Pod,
 
 func finishBackup(ctx context.Context, c client.Client, pgBackup *v2.PerconaPGBackup, job *batchv1.Job) (*reconcile.Result, error) {
 	if checkBackupJob(job) == v2.BackupSucceeded {
-		readyPod, err := controller.GetReadyInstancePod(ctx, c, pgBackup.Spec.PGCluster, pgBackup.Namespace)
+		// MARK(AG): Pod for running pgbackrest info.
+		//  Read the repo-host pod instead.
+
+		readyPod, err := controller.GetReadyRepoHostPod(ctx, c, pgBackup.Spec.PGCluster, pgBackup.Namespace)
 		if err != nil {
-			return nil, errors.Wrap(err, "get ready instance pod")
+			return nil, errors.Wrap(err, "get ready repo-host pod")
 		}
 
 		if err := updatePGBackrestInfo(ctx, c, readyPod, pgBackup); err != nil {

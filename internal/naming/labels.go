@@ -30,6 +30,9 @@ const (
 	// LabelRepoName is used to specify the name of a pgBackRest repository
 	LabelRepoName = labelPrefix + "name"
 
+	// LabelPgbackrestDedicated is used to select the repo-host pod
+	LabelPgbackrestDedicated = labelPrefix + "pgbackrest-dedicated"
+
 	LabelPatroni = labelPrefix + "patroni"
 	LabelRole    = labelPrefix + "role"
 

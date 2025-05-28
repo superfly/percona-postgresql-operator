@@ -31,6 +31,8 @@ const (
 
 	// ContainerPGBackRestConfig is the name of a container supporting pgBackRest.
 	ContainerPGBackRestConfig = "pgbackrest-config"
+	// ContainerPGBackRest is the name of a container running pgBackRest.
+	ContainerPGBackRest = "pgbackrest"
 
 	// ContainerPGBouncer is the name of a container running PgBouncer.
 	ContainerPGBouncer = "pgbouncer"
