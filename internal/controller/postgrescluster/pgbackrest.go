@@ -1149,18 +1149,6 @@ func (r *Reconciler) reconcileRestoreJob(ctx context.Context,
 	dataSource *v1beta1.PostgresClusterDataSource,
 	instanceName, instanceSetName, configHash, stanzaName string) error {
 
-	// Check if the pgBackRest secret exists before proceeding
-	pgbackrestSecret := &corev1.Secret{ObjectMeta: naming.PGBackRestSecret(cluster)}
-	if err := r.Client.Get(ctx, client.ObjectKeyFromObject(pgbackrestSecret), pgbackrestSecret); err != nil {
-		if apierrors.IsNotFound(err) {
-			// Secret doesn't exist yet, requeue to wait for it
-			r.Recorder.Eventf(cluster, corev1.EventTypeNormal, "WaitingForSecret",
-				"Waiting for pgBackRest secret to be created before starting restore")
-			return errors.New("pgBackRest secret not yet available, waiting before starting restore")
-		}
-		return errors.WithStack(err)
-	}
-
 	repoName := dataSource.RepoName
 	options := dataSource.Options
 
