@@ -2,8 +2,6 @@ name: Build and Push Docker Image
 
 on:
   push:
-    branches:
-      - flyio-2.6.0
 
 env:
   REGISTRY: docker.io
@@ -20,7 +18,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Needed for git describe
+          fetch-depth: 0 # Needed for git describe
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
