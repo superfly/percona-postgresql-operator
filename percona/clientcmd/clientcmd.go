@@ -69,7 +69,7 @@ func (c *Client) Exec(ctx context.Context, pod *corev1.Pod, containerName string
 			TTY:       tty,
 		}, scheme.ParameterCodec)
 
-	log.Println("Execing in pod", pod.Name, containerName)
+	log.Println("Execing in pod", pod.Name, containerName, command)
 	exec, err := remotecommand.NewSPDYExecutor(c.restconfig, "POST", req.URL())
 	if err != nil {
 		return errors.Wrap(err, "failed to create executor")
