@@ -87,7 +87,7 @@ func GetReadyInstancePod(ctx context.Context, c client.Client, clusterName, name
 	if err != nil {
 		return nil, err
 	}
-	// Mark (AG): Do soemthing similar for repo-host.
+	// Mark (AG): Do something similar for repo-host.
 	if err := c.List(ctx, pods, client.InNamespace(namespace), client.MatchingLabelsSelector{Selector: selector}); err != nil {
 		return nil, errors.Wrap(err, "list pods")
 	}
