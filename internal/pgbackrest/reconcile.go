@@ -398,7 +398,30 @@ func AddServerToRepoPod(
 		resources = &cluster.Spec.Backups.PGBackRest.RepoHost.Resources
 	}
 
+	// Add the server container and volume
 	addServerContainerAndVolume(ctx, cluster, pod, certificates, resources)
+
+	// Add environment variables from the specified secret if provided
+	if cluster.Spec.Backups.PGBackRest.RepoHost != nil &&
+		cluster.Spec.Backups.PGBackRest.RepoHost.EnvFromSecret != nil {
+
+		secretName := *cluster.Spec.Backups.PGBackRest.RepoHost.EnvFromSecret
+
+		// Find the pgbackrest container and add the envFrom reference
+		for i := range pod.Containers {
+			if pod.Containers[i].Name == naming.PGBackRestRepoContainerName {
+				pod.Containers[i].EnvFrom = append(pod.Containers[i].EnvFrom,
+					corev1.EnvFromSource{
+						SecretRef: &corev1.SecretEnvSource{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: secretName,
+							},
+						},
+					})
+				break
+			}
+		}
+	}
 }
 
 // InstanceCertificates populates the shared Secret with certificates needed to run pgBackRest.
@@ -512,7 +535,7 @@ func Secret(ctx context.Context,
 	var err error
 
 	// Save the CA and generate a TLS client certificate for the entire cluster.
-	if inRepoHost != nil {
+	if inRepoHost != nil && inRoot != nil {
 		initialize.Map(&outSecret.Data)
 
 		// The server verifies its "tls-server-auth" option contains the common
@@ -547,7 +570,7 @@ func Secret(ctx context.Context,
 	}
 
 	// Generate a TLS server certificate for each repository host.
-	if inRepoHost != nil {
+	if inRepoHost != nil && inRoot != nil {
 		// The client verifies the "pg-host" or "repo-host" option it used is
 		// present in the DNS names of the server certificate.
 		leaf := &pki.LeafCertificate{}

@@ -215,7 +215,7 @@ check-envtest: get-pgmonitor get-external-snapshotter
 		$(GO_TEST) -count=1 -cover -tags=envtest ./...
 
 # The "PGO_TEST_TIMEOUT_SCALE" environment variable (default: 1) can be set to a
-# positive number that extends test timeouts. The following runs tests with 
+# positive number that extends test timeouts. The following runs tests with
 # timeouts that are 20% longer than normal:
 # make check-envtest-existing PGO_TEST_TIMEOUT_SCALE=1.2
 .PHONY: check-envtest-existing
@@ -233,6 +233,10 @@ check-kuttl: ## Run kuttl end-to-end tests
 check-kuttl: ## example command: make check-kuttl KUTTL_TEST='
 	${KUTTL_TEST} \
 		--config testing/kuttl/kuttl-test.yaml
+
+.PHONY: test-docker
+test-docker: ## Run tests in Docker environment (use TEST_MODE=ci|all|specific, TEST_NAME=<test>, TEST_PACKAGE=<package>)
+	@./hack/test-docker.sh $(if $(TEST_MODE),-m $(TEST_MODE)) $(if $(TEST_NAME),-t $(TEST_NAME)) $(if $(TEST_PACKAGE),-p $(TEST_PACKAGE)) $(if $(VERBOSE),-v)
 
 .PHONY: generate-kuttl
 generate-kuttl: export KUTTL_PG_UPGRADE_FROM_VERSION ?= 15
@@ -432,17 +436,17 @@ include e2e-tests/release_versions
 release: generate
 	$(SED) -i \
     	-e "/^spec:/,/^  crVersion:/{s/crVersion: .*/crVersion: $(VERSION)/}" \
-        -e "/^spec:/,/^  image:/{s#image: .*#image: $(IMAGE_POSTGRESQL17)#}" \
-        -e "/^    pgBouncer:/,/^      image:/{s#image: .*#image: $(IMAGE_PGBOUNCER17)#}" \
-        -e "/^    pgbackrest:/,/^      image:/{s#image: .*#image: $(IMAGE_PGBACKREST17)#}" \
+        -e "/^spec:/,/^  image:/{s#image: .*#image: $(IMAGE_POSTGRESQL16)#}" \
+        -e "/^    pgBouncer:/,/^      image:/{s#image: .*#image: $(IMAGE_PGBOUNCER16)#}" \
+        -e "/^    pgbackrest:/,/^      image:/{s#image: .*#image: $(IMAGE_PGBACKREST16)#}" \
         -e "/extensions:/,/image:/{s#image: .*#image: $(IMAGE_OPERATOR)#}" \
         -e "/^  pmm:/,/^    image:/{s#image: .*#image: $(IMAGE_PMM_CLIENT)#}" deploy/cr.yaml
 	$(SED) -i -r "/Version *= \"[0-9]+\.[0-9]+\.[0-9]+\"$$/ s/[0-9]+\.[0-9]+\.[0-9]+/$(VERSION)/" pkg/apis/pgv2.percona.com/v2/perconapgcluster_types.go
 	$(SED) -i \
        -e "/^spec:/,/^  image:/{s#image: .*#image: $(IMAGE_OPERATOR)#}" \
-       -e "/^spec:/,/^  toPostgresImage:/{s#toPostgresImage: .*#toPostgresImage: $(IMAGE_POSTGRESQL17)#}" \
-       -e "/^spec:/,/^  toPgBouncerImage:/{s#toPgBouncerImage: .*#toPgBouncerImage: $(IMAGE_PGBOUNCER17)#}" \
-       -e "/^spec:/,/^  toPgBackRestImage:/{s#toPgBackRestImage: .*#toPgBackRestImage: $(IMAGE_PGBACKREST17)#}" deploy/upgrade.yaml
+       -e "/^spec:/,/^  toPostgresImage:/{s#toPostgresImage: .*#toPostgresImage: $(IMAGE_POSTGRESQL16)#}" \
+       -e "/^spec:/,/^  toPgBouncerImage:/{s#toPgBouncerImage: .*#toPgBouncerImage: $(IMAGE_PGBOUNCER16)#}" \
+       -e "/^spec:/,/^  toPgBackRestImage:/{s#toPgBackRestImage: .*#toPgBackRestImage: $(IMAGE_PGBACKREST16)#}" deploy/upgrade.yaml
 
 # Prepare main branch after release
 MAJOR_VER := $(shell grep -oE "crVersion: .*" deploy/cr.yaml|grep -oE "[0-9]+\.[0-9]+\.[0-9]+"|cut -d'.' -f1)
