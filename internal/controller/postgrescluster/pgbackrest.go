@@ -1797,7 +1797,8 @@ func (r *Reconciler) reconcilePostgresClusterDataSource(ctx context.Context,
 // data source, i.e., S3, etc.
 func (r *Reconciler) reconcileCloudBasedDataSource(ctx context.Context,
 	cluster *v1beta1.PostgresCluster, dataSource *v1beta1.PGBackRestDataSource,
-	configHash string, clusterVolumes []corev1.PersistentVolumeClaim) error {
+	configHash string, clusterVolumes []corev1.PersistentVolumeClaim,
+	rootCA *pki.RootCertificateAuthority) error {
 
 	// Ensure the proper instance and instance set can be identified via the status.  The
 	// StartupInstance and StartupInstanceSet values should be populated when the cluster
@@ -1849,6 +1850,20 @@ func (r *Reconciler) reconcileCloudBasedDataSource(ctx context.Context,
 	}
 
 	if err := r.createRestoreConfig(ctx, cluster, configHash); err != nil {
+		return err
+	}
+
+	// Create a fake StatefulSet for reconciling the PGBackRest secret
+	fakeRepoHost := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      cluster.Name + "-repo-host",
+			Namespace: cluster.Namespace,
+		},
+	}
+
+	// Ensure the PGBackRest secret exists - this is needed for cloud-based data sources
+	// even though we don't have a full pgBackRest deployment
+	if err := r.reconcilePGBackRestSecret(ctx, cluster, fakeRepoHost, rootCA); err != nil {
 		return err
 	}
 
