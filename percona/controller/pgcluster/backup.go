@@ -53,7 +53,8 @@ func (r *PGClusterReconciler) cleanupOutdatedBackups(ctx context.Context, cr *v2
 			continue
 		}
 
-		readyPod, err := controller.GetReadyInstancePod(ctx, r.Client, cr.Name, cr.Namespace)
+		// MARK(AG): Pod for running pgbackrest info.
+		readyPod, err := controller.GetReadyRepoHostPod(ctx, r.Client, cr.Name, cr.Namespace)
 		if err != nil {
 			return errors.Wrap(err, "get ready instance pod")
 		}

@@ -196,6 +196,7 @@ func getBackupStartTimestamp(ctx context.Context, cli client.Client, cr *pgv2.Pe
 		return time.Time{}, PrimaryPodNotFound
 	}
 
+	// MARK(AG): More pgbackest stuff
 	pgbackrestInfo, err := pgbackrest.GetInfo(ctx, primary, backup.Spec.RepoName)
 	if err != nil {
 		return time.Time{}, errors.Wrap(err, "get pgbackrest info")
