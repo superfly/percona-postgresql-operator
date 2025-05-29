@@ -3,6 +3,7 @@ package clientcmd
 import (
 	"context"
 	"io"
+	"log"
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -68,6 +69,7 @@ func (c *Client) Exec(ctx context.Context, pod *corev1.Pod, containerName string
 			TTY:       tty,
 		}, scheme.ParameterCodec)
 
+	log.Println("Execing in pod", pod.Name, containerName)
 	exec, err := remotecommand.NewSPDYExecutor(c.restconfig, "POST", req.URL())
 	if err != nil {
 		return errors.Wrap(err, "failed to create executor")
