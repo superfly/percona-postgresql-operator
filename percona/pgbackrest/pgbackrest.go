@@ -99,7 +99,7 @@ func SetAnnotationsToBackup(ctx context.Context, pod *corev1.Pod, stanza string,
 	cmd = append(cmd, annotationsOpts...)
 	cmd = append(cmd, "annotate")
 
-	if err := c.Exec(ctx, pod, naming.ContainerDatabase, nil, nil, stderr, cmd...); err != nil {
+	if err := c.Exec(ctx, pod, naming.ContainerPGBackRest, nil, nil, stderr, cmd...); err != nil {
 		return errors.Wrapf(err, "exec: %s", stderr.String())
 	}
 
