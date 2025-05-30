@@ -191,7 +191,8 @@ func GetLatestCommitTimestamp(ctx context.Context, cli client.Client, execCli *c
 }
 
 func getBackupStartTimestamp(ctx context.Context, cli client.Client, cr *pgv2.PerconaPGCluster, backup *pgv2.PerconaPGBackup) (time.Time, error) {
-	primary, err := perconaPG.GetPrimaryPod(ctx, cli, cr)
+	// MARK(AG): This might break.
+	primary, err := perconaPG.GetRepoHostPod(ctx, cli, cr)
 	if err != nil {
 		return time.Time{}, PrimaryPodNotFound
 	}
