@@ -41,9 +41,8 @@ All tests can be run locally using Docker to ensure a consistent testing environ
 
 The test script supports three modes:
 
-1. **CI Mode** (`-m ci`): Runs the same tests as CI/CD pipelines
-2. **All Mode** (`-m all`): Runs the complete test suite with envtest
-3. **Specific Mode** (`-m specific`): Runs individual test cases
+1. **All Mode** (`-m all`): Runs the complete test suite with envtest
+2. **Specific Mode** (`-m specific`): Runs individual test cases
 
 ### Command Line Options
 
