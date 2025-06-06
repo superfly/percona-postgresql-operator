@@ -1690,23 +1690,6 @@ func (r *Reconciler) reconcilePostgresClusterDataSource(ctx context.Context,
 		return nil
 	}
 
-	if err := r.createRestoreConfig(ctx, cluster, configHash); err != nil {
-		return err
-	}
-
-	// Create a fake StatefulSet for reconciling the PGBackRest secret
-	fakeRepoHost := &appsv1.StatefulSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      cluster.Name + "-repo-host",
-			Namespace: cluster.Namespace,
-		},
-	}
-
-	// Ensure the PGBackRest secret exists
-	if err := r.reconcilePGBackRestSecret(ctx, cluster, fakeRepoHost, rootCA); err != nil {
-		return err
-	}
-
 	// Now proceed with volumes and other resources for the restore
 	sourceCluster := &v1beta1.PostgresCluster{}
 	if dataSource.ClusterName != "" {
@@ -1731,6 +1714,47 @@ func (r *Reconciler) reconcilePostgresClusterDataSource(ctx context.Context,
 		}
 	} else {
 		sourceCluster = nil
+	}
+
+	// Copy restore configuration from the source cluster if it exists
+	if sourceCluster != nil {
+		if err := r.copyRestoreConfiguration(ctx, cluster, sourceCluster); err != nil {
+			return err
+		}
+
+		// Validate that the requested repo exists in the source cluster
+		repoExists := false
+		for _, repo := range sourceCluster.Spec.Backups.PGBackRest.Repos {
+			if repo.Name == dataSource.RepoName {
+				repoExists = true
+				break
+			}
+		}
+		if !repoExists {
+			r.Recorder.Eventf(cluster, corev1.EventTypeWarning, "InvalidDataSource",
+				"Requested repository %q does not exist in source cluster %q",
+				dataSource.RepoName, sourceCluster.Name)
+			return nil
+		}
+	} else {
+		// If no source cluster name was specified, create basic pgBackRest configuration
+		// This is needed for the ConfigMap to exist for restore operations
+		if err := r.reconcilePGBackRestConfig(ctx, cluster, "", configHash, "", "", []string{}); err != nil {
+			return err
+		}
+	}
+
+	// Create a fake StatefulSet for reconciling the PGBackRest secret
+	fakeRepoHost := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      cluster.Name + "-repo-host",
+			Namespace: cluster.Namespace,
+		},
+	}
+
+	// Ensure the PGBackRest secret exists
+	if err := r.reconcilePGBackRestSecret(ctx, cluster, fakeRepoHost, rootCA); err != nil {
+		return err
 	}
 
 	// Define a fake STS to use when calling the reconcile functions below since when
