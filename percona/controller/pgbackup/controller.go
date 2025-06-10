@@ -551,7 +551,8 @@ func finishBackup(ctx context.Context, c client.Client, pgBackup *v2.PerconaPGBa
 		// MARK(AG): Pod for running pgbackrest info.
 		//  Read the repo-host pod instead.
 
-		readyPod, err := controller.GetReadyRepoHostPod(ctx, c, pgBackup.Spec.PGCluster, pgBackup.Namespace)
+		// readyPod, err := controller.GetReadyRepoHostPod(ctx, c, pgBackup.Spec.PGCluster, pgBackup.Namespace)
+		readyPod, err := controller.GetReadyInstancePod(ctx, c, pgBackup.Spec.PGCluster, pgBackup.Namespace)
 		if err != nil {
 			return nil, errors.Wrap(err, "get ready repo-host pod")
 		}
