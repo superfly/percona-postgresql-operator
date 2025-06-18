@@ -3,6 +3,7 @@ package clientcmd
 import (
 	"context"
 	"io"
+	"log"
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -52,6 +53,10 @@ func NewClient() (*Client, error) {
 func (c *Client) Exec(ctx context.Context, pod *corev1.Pod, containerName string, stdin io.Reader, stdout, stderr io.Writer, command ...string) error {
 	// Prepare the API URL used to execute another process within the Pod.
 	// In this case, we'll run a remote shell.
+
+	log.Printf("Execing in pod namespace=%q, pod=%q, container=%q, command=%v\n",
+		pod.Namespace, pod.Name, containerName, command)
+
 	tty := false
 	req := c.client.RESTClient().
 		Post().
