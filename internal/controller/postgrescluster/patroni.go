@@ -8,7 +8,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"time"
 
 	"github.com/pkg/errors"
@@ -17,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/percona/percona-postgresql-operator/internal/feature"
 	"github.com/percona/percona-postgresql-operator/internal/initialize"
 	"github.com/percona/percona-postgresql-operator/internal/logging"
 	"github.com/percona/percona-postgresql-operator/internal/naming"
@@ -103,8 +103,8 @@ func (r *Reconciler) handlePatroniRestarts(
 			role = "master"
 		}
 
-		// If FEAT_PATRONI_PREFER_HTTP is active, try HTTP first, then fallback
-		if os.Getenv("FEAT_PATRONI_PREFER_HTTP") == "true" {
+		// If PatroniPreferHTTP feature is enabled, try HTTP first, then fallback
+		if feature.Enabled(ctx, feature.PatroniPreferHTTP) {
 			log.Info("Attempting HTTP call...")
 
 			if client, err := patroni.NewHttpClient(ctx, r.Client, pod.Name); err == nil {
@@ -144,8 +144,8 @@ func (r *Reconciler) handlePatroniRestarts(
 	if replicaNeedsRestart != nil {
 		pod := replicaNeedsRestart.Pods[0]
 
-		// If FEAT_PATRONI_PREFER_HTTP is active, try HTTP first, then fallback
-		if os.Getenv("FEAT_PATRONI_PREFER_HTTP") == "true" {
+		// If PatroniPreferHTTP feature is enabled, try HTTP first, then fallback
+		if feature.Enabled(ctx, feature.PatroniPreferHTTP) {
 			log.Info("Attempting HTTP call...")
 
 			if client, err := patroni.NewHttpClient(ctx, r.Client, pod.Name); err == nil {
@@ -253,8 +253,8 @@ func (r *Reconciler) reconcilePatroniDynamicConfiguration(
 
 	configuration = patroni.DynamicConfiguration(cluster, configuration, pgHBAs, pgParameters)
 
-	// If FEAT_PATRONI_PREFER_HTTP is active, try HTTP first, then fallback
-	if os.Getenv("FEAT_PATRONI_PREFER_HTTP") == "true" {
+	// If PatroniPreferHTTP feature is enabled, try HTTP first, then fallback
+	if feature.Enabled(ctx, feature.PatroniPreferHTTP) {
 		log.Info("Attempting HTTP call...")
 
 		if client, err := patroni.NewHttpClient(ctx, r.Client, pod.Name); err == nil {
@@ -605,8 +605,8 @@ func (r *Reconciler) reconcilePatroniSwitchover(ctx context.Context,
 	var timeline int64
 	var err error
 
-	// If FEAT_PATRONI_PREFER_HTTP is active, try HTTP first, then fallback
-	if os.Getenv("FEAT_PATRONI_PREFER_HTTP") == "true" {
+	// If PatroniPreferHTTP feature is enabled, try HTTP first, then fallback
+	if feature.Enabled(ctx, feature.PatroniPreferHTTP) {
 		log.Info("Attempting HTTP call...")
 
 		if res, httpErr := patroni.NewHttpClient(ctx, r.Client, runningPod.Name); httpErr == nil {

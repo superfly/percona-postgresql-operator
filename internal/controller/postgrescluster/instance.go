@@ -8,7 +8,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"sort"
 	"strings"
 	"time"
@@ -822,8 +821,8 @@ func (r *Reconciler) rolloutInstance(
 
 		var success bool
 
-		// If FEAT_PATRONI_PREFER_HTTP is active, try HTTP first, then fallback
-		if os.Getenv("FEAT_PATRONI_PREFER_HTTP") == "true" {
+		// If PatroniPreferHTTP feature is enabled, try HTTP first, then fallback
+		if feature.Enabled(ctx, feature.PatroniPreferHTTP) {
 			log.Info("Attempting HTTP call...")
 
 			if res, httpErr := patroni.NewHttpClient(ctx, r.Client, pod.Name); httpErr == nil {

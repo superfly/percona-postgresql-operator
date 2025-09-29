@@ -86,6 +86,9 @@ const (
 
 	// Support VolumeSnapshots
 	VolumeSnapshots = "VolumeSnapshots"
+
+	// Use HTTP client for Patroni API calls instead of kubectl exec
+	PatroniPreferHTTP = "PatroniPreferHTTP"
 )
 
 // NewGate returns a MutableGate with the Features defined in this package.
@@ -98,6 +101,7 @@ func NewGate() MutableGate {
 		AutoGrowVolumes:      {Default: false, PreRelease: featuregate.Alpha},
 		BridgeIdentifiers:    {Default: false, PreRelease: featuregate.Alpha},
 		InstanceSidecars:     {Default: false, PreRelease: featuregate.Alpha},
+		PatroniPreferHTTP:    {Default: false, PreRelease: featuregate.Alpha},
 		PGBouncerSidecars:    {Default: false, PreRelease: featuregate.Alpha},
 		TablespaceVolumes:    {Default: false, PreRelease: featuregate.Alpha},
 		VolumeSnapshots:      {Default: false, PreRelease: featuregate.Alpha},
