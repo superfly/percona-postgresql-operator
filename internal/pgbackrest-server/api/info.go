@@ -5,9 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
-	"strings"
 
-	"github.com/superfly/percona-postgresql-operator/internal/pgbackrest-server/exec"
+	pgbackrestserver "github.com/superfly/percona-postgresql-operator/internal/pgbackrest-server"
 )
 
 type InfoCommandOptions struct {
@@ -41,52 +40,8 @@ type InfoCommandOptions struct {
 	RepoS3Region   string `json:"repo_s3_region,omitempty"`
 }
 
-func (c InfoCommandOptions) AsSlice() []string {
-	var cmd []string
-
-	val := reflect.ValueOf(c)
-	typ := val.Type()
-
-	for i := range val.NumField() {
-		jsonTag := typ.Field(i).Tag.Get("json")
-		if jsonTag == "" || jsonTag == "-" {
-			continue
-		}
-
-		field := val.Field(i)
-		parts := strings.Split(jsonTag, ",")
-		jsonKey := parts[0]
-		isOmitEmpty := len(parts) > 1 && parts[1] == "omitempty"
-
-		if isOmitEmpty && field.IsZero() {
-			continue
-		}
-
-		flag := "--" + strings.ReplaceAll(jsonKey, "_", "-")
-
-		switch field.Kind() {
-		case reflect.String:
-			if strVal := field.String(); strVal != "" || !isOmitEmpty {
-				cmd = append(cmd, fmt.Sprintf(" %s=%s", flag, strVal))
-			}
-		case reflect.Int, reflect.Int64:
-			if intVal := field.Int(); intVal != 0 || !isOmitEmpty {
-				cmd = append(cmd, fmt.Sprintf(" %s=%d", flag, intVal))
-			}
-		case reflect.Bool:
-			if field.Bool() {
-				cmd = append(cmd, fmt.Sprintf(" %s", flag))
-			}
-		case reflect.Slice:
-			if field.Type().Elem().Kind() == reflect.String {
-				for j := range field.Len() {
-					cmd = append(cmd, fmt.Sprintf(" %s=%s", flag, field.Index(j).String()))
-				}
-			}
-		}
-	}
-
-	return cmd
+func (c *InfoCommandOptions) AsSlice() []string {
+	return pgbackrestserver.IntoOpts(reflect.ValueOf(c))
 }
 
 func InfoCommandHandler(w http.ResponseWriter, r *http.Request) {
@@ -96,7 +51,7 @@ func InfoCommandHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cmd := exec.BackrestCommand{
+	cmd := pgbackrestserver.BackrestCommand{
 		Command: "info",
 		Opts:    opts.AsSlice(),
 	}
@@ -106,13 +61,6 @@ func InfoCommandHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("failed to run pgbackrest info command: %v", err), http.StatusInternalServerError)
 		return
 	}
-
-	// var output InfoOutput
-	// if err := json.Unmarshal(stdout.Bytes(), &output); err != nil {
-	// 	// return InfoCommandOutput{}, errors.Wrap(err, "failed to unmarshal pgBackRest info output")
-	// 	http.Error(w, fmt.Sprintf("could not decode output from pgbackrest info command: %v", err), http.StatusInternalServerError)
-	// 	return
-	// }
 
 	w.WriteHeader(http.StatusOK)
 	w.Write(stdout.Bytes())
