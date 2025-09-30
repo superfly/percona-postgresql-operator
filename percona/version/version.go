@@ -9,9 +9,9 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/percona/percona-postgresql-operator/percona/version/service/client"
-	"github.com/percona/percona-postgresql-operator/percona/version/service/client/version_service"
-	v2 "github.com/percona/percona-postgresql-operator/pkg/apis/pgv2.percona.com/v2"
+	"github.com/superfly/percona-postgresql-operator/percona/version/service/client"
+	"github.com/superfly/percona-postgresql-operator/percona/version/service/client/version_service"
+	v2 "github.com/superfly/percona-postgresql-operator/pkg/apis/pgv2.percona.com/v2"
 )
 
 type Meta struct {

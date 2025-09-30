@@ -13,7 +13,7 @@ import (
 
 	"gotest.tools/v3/assert"
 
-	"github.com/percona/percona-postgresql-operator/internal/testing/cmp"
+	"github.com/superfly/percona-postgresql-operator/internal/testing/cmp"
 )
 
 func TestCreateDatabasesInPostgreSQL(t *testing.T) {

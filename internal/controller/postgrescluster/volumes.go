@@ -20,12 +20,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	"github.com/percona/percona-postgresql-operator/internal/config"
-	"github.com/percona/percona-postgresql-operator/internal/initialize"
-	"github.com/percona/percona-postgresql-operator/internal/naming"
-	"github.com/percona/percona-postgresql-operator/internal/pgbackrest"
-	"github.com/percona/percona-postgresql-operator/internal/postgres"
-	"github.com/percona/percona-postgresql-operator/pkg/apis/postgres-operator.crunchydata.com/v1beta1"
+	"github.com/superfly/percona-postgresql-operator/internal/config"
+	"github.com/superfly/percona-postgresql-operator/internal/initialize"
+	"github.com/superfly/percona-postgresql-operator/internal/naming"
+	"github.com/superfly/percona-postgresql-operator/internal/pgbackrest"
+	"github.com/superfly/percona-postgresql-operator/internal/postgres"
+	"github.com/superfly/percona-postgresql-operator/pkg/apis/postgres-operator.crunchydata.com/v1beta1"
 )
 
 // +kubebuilder:rbac:groups="",resources="persistentvolumeclaims",verbs={list}

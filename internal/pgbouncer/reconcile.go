@@ -11,13 +11,13 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/percona/percona-postgresql-operator/internal/config"
-	"github.com/percona/percona-postgresql-operator/internal/feature"
-	"github.com/percona/percona-postgresql-operator/internal/initialize"
-	"github.com/percona/percona-postgresql-operator/internal/naming"
-	"github.com/percona/percona-postgresql-operator/internal/pki"
-	"github.com/percona/percona-postgresql-operator/internal/postgres"
-	"github.com/percona/percona-postgresql-operator/pkg/apis/postgres-operator.crunchydata.com/v1beta1"
+	"github.com/superfly/percona-postgresql-operator/internal/config"
+	"github.com/superfly/percona-postgresql-operator/internal/feature"
+	"github.com/superfly/percona-postgresql-operator/internal/initialize"
+	"github.com/superfly/percona-postgresql-operator/internal/naming"
+	"github.com/superfly/percona-postgresql-operator/internal/pki"
+	"github.com/superfly/percona-postgresql-operator/internal/postgres"
+	"github.com/superfly/percona-postgresql-operator/pkg/apis/postgres-operator.crunchydata.com/v1beta1"
 )
 
 // ConfigMap populates the PgBouncer ConfigMap.

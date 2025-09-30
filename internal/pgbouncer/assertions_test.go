@@ -16,7 +16,7 @@
 package pgbouncer
 
 import (
-	"github.com/percona/percona-postgresql-operator/internal/testing/cmp"
+	"github.com/superfly/percona-postgresql-operator/internal/testing/cmp"
 )
 
 // marshalMatches converts actual to YAML and compares that to expected.

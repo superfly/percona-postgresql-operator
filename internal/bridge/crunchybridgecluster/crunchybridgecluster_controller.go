@@ -21,11 +21,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
-	"github.com/percona/percona-postgresql-operator/internal/bridge"
-	"github.com/percona/percona-postgresql-operator/internal/controller/runtime"
-	pgoRuntime "github.com/percona/percona-postgresql-operator/internal/controller/runtime"
-	"github.com/percona/percona-postgresql-operator/internal/naming"
-	"github.com/percona/percona-postgresql-operator/pkg/apis/postgres-operator.crunchydata.com/v1beta1"
+	"github.com/superfly/percona-postgresql-operator/internal/bridge"
+	"github.com/superfly/percona-postgresql-operator/internal/controller/runtime"
+	pgoRuntime "github.com/superfly/percona-postgresql-operator/internal/controller/runtime"
+	"github.com/superfly/percona-postgresql-operator/internal/naming"
+	"github.com/superfly/percona-postgresql-operator/pkg/apis/postgres-operator.crunchydata.com/v1beta1"
 )
 
 // CrunchyBridgeClusterReconciler reconciles a CrunchyBridgeCluster object

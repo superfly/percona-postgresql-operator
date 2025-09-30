@@ -21,10 +21,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/percona/percona-postgresql-operator/internal/config"
-	"github.com/percona/percona-postgresql-operator/internal/controller/runtime"
-	"github.com/percona/percona-postgresql-operator/internal/registration"
-	"github.com/percona/percona-postgresql-operator/pkg/apis/postgres-operator.crunchydata.com/v1beta1"
+	"github.com/superfly/percona-postgresql-operator/internal/config"
+	"github.com/superfly/percona-postgresql-operator/internal/controller/runtime"
+	"github.com/superfly/percona-postgresql-operator/internal/registration"
+	"github.com/superfly/percona-postgresql-operator/pkg/apis/postgres-operator.crunchydata.com/v1beta1"
 )
 
 const (

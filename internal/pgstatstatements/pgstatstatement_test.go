@@ -9,7 +9,7 @@ import (
 
 	"gotest.tools/v3/assert"
 
-	"github.com/percona/percona-postgresql-operator/internal/postgres"
+	"github.com/superfly/percona-postgresql-operator/internal/postgres"
 )
 
 func TestEnableInPostgreSQL(t *testing.T) {

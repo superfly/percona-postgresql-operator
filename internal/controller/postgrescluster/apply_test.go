@@ -24,7 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	"github.com/percona/percona-postgresql-operator/internal/testing/require"
+	"github.com/superfly/percona-postgresql-operator/internal/testing/require"
 )
 
 func TestServerSideApply(t *testing.T) {

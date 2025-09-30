@@ -13,8 +13,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/percona/percona-postgresql-operator/internal/naming"
-	"github.com/percona/percona-postgresql-operator/internal/patroni"
+	"github.com/superfly/percona-postgresql-operator/internal/naming"
+	"github.com/superfly/percona-postgresql-operator/internal/patroni"
 )
 
 // watchPods returns a handler.EventHandler for Pods.

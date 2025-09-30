@@ -13,8 +13,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsServer "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	r "github.com/percona/percona-postgresql-operator/internal/controller/runtime"
-	"github.com/percona/percona-postgresql-operator/internal/feature"
+	r "github.com/superfly/percona-postgresql-operator/internal/controller/runtime"
+	"github.com/superfly/percona-postgresql-operator/internal/feature"
 )
 
 // default refresh interval in minutes

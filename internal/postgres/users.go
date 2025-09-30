@@ -12,10 +12,10 @@ import (
 
 	pg_query "github.com/pganalyze/pg_query_go/v5"
 
-	"github.com/percona/percona-postgresql-operator/internal/feature"
-	"github.com/percona/percona-postgresql-operator/internal/logging"
-	"github.com/percona/percona-postgresql-operator/internal/naming"
-	"github.com/percona/percona-postgresql-operator/pkg/apis/postgres-operator.crunchydata.com/v1beta1"
+	"github.com/superfly/percona-postgresql-operator/internal/feature"
+	"github.com/superfly/percona-postgresql-operator/internal/logging"
+	"github.com/superfly/percona-postgresql-operator/internal/naming"
+	"github.com/superfly/percona-postgresql-operator/pkg/apis/postgres-operator.crunchydata.com/v1beta1"
 )
 
 var RESERVED_SCHEMA_NAMES = map[string]bool{

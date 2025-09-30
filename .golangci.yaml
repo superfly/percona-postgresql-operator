@@ -23,7 +23,7 @@ linters-settings:
     sections:
       - standard
       - default
-      - prefix(github.com/percona)
+      - prefix(github.com/superfly)
 
   depguard:
     rules:
@@ -43,14 +43,14 @@ linters-settings:
           - pkg: testing/*
             desc: The "testing" packages should be used only in tests.
 
-          - pkg: github.com/percona/percona-postgresql-operator/internal/testing/*
+          - pkg: github.com/superfly/percona-postgresql-operator/internal/testing/*
             desc: The "internal/testing" packages should be used only in tests.
 
   exhaustive:
     default-signifies-exhaustive: true
 
   goimports:
-    local-prefixes: github.com/percona/percona-postgresql-operator
+    local-prefixes: github.com/superfly/percona-postgresql-operator
 
   gomodguard:
     blocked:

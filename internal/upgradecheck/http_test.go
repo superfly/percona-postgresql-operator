@@ -21,9 +21,9 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
-	"github.com/percona/percona-postgresql-operator/internal/feature"
-	"github.com/percona/percona-postgresql-operator/internal/logging"
-	"github.com/percona/percona-postgresql-operator/internal/testing/cmp"
+	"github.com/superfly/percona-postgresql-operator/internal/feature"
+	"github.com/superfly/percona-postgresql-operator/internal/logging"
+	"github.com/superfly/percona-postgresql-operator/internal/testing/cmp"
 )
 
 func init() {

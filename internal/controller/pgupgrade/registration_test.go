@@ -13,11 +13,11 @@ import (
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/percona/percona-postgresql-operator/internal/controller/runtime"
-	"github.com/percona/percona-postgresql-operator/internal/registration"
-	"github.com/percona/percona-postgresql-operator/internal/testing/cmp"
-	"github.com/percona/percona-postgresql-operator/internal/testing/events"
-	"github.com/percona/percona-postgresql-operator/pkg/apis/postgres-operator.crunchydata.com/v1beta1"
+	"github.com/superfly/percona-postgresql-operator/internal/controller/runtime"
+	"github.com/superfly/percona-postgresql-operator/internal/registration"
+	"github.com/superfly/percona-postgresql-operator/internal/testing/cmp"
+	"github.com/superfly/percona-postgresql-operator/internal/testing/events"
+	"github.com/superfly/percona-postgresql-operator/pkg/apis/postgres-operator.crunchydata.com/v1beta1"
 )
 
 func TestUpgradeAuthorized(t *testing.T) {

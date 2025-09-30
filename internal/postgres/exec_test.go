@@ -16,7 +16,7 @@ import (
 
 	"gotest.tools/v3/assert"
 
-	"github.com/percona/percona-postgresql-operator/internal/testing/require"
+	"github.com/superfly/percona-postgresql-operator/internal/testing/require"
 )
 
 // This example demonstrates how Executor can work with exec.Cmd.

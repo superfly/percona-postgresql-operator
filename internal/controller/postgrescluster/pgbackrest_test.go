@@ -38,14 +38,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/percona/percona-postgresql-operator/internal/initialize"
-	"github.com/percona/percona-postgresql-operator/internal/naming"
-	"github.com/percona/percona-postgresql-operator/internal/pgbackrest"
-	"github.com/percona/percona-postgresql-operator/internal/pki"
-	"github.com/percona/percona-postgresql-operator/internal/testing/cmp"
-	"github.com/percona/percona-postgresql-operator/internal/testing/require"
-	v2 "github.com/percona/percona-postgresql-operator/pkg/apis/pgv2.percona.com/v2"
-	"github.com/percona/percona-postgresql-operator/pkg/apis/postgres-operator.crunchydata.com/v1beta1"
+	"github.com/superfly/percona-postgresql-operator/internal/initialize"
+	"github.com/superfly/percona-postgresql-operator/internal/naming"
+	"github.com/superfly/percona-postgresql-operator/internal/pgbackrest"
+	"github.com/superfly/percona-postgresql-operator/internal/pki"
+	"github.com/superfly/percona-postgresql-operator/internal/testing/cmp"
+	"github.com/superfly/percona-postgresql-operator/internal/testing/require"
+	v2 "github.com/superfly/percona-postgresql-operator/pkg/apis/pgv2.percona.com/v2"
+	"github.com/superfly/percona-postgresql-operator/pkg/apis/postgres-operator.crunchydata.com/v1beta1"
 )
 
 var testCronSchedule string = "*/15 * * * *"

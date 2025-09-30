@@ -12,11 +12,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
-	"github.com/percona/percona-postgresql-operator/internal/logging"
-	"github.com/percona/percona-postgresql-operator/percona/clientcmd"
-	"github.com/percona/percona-postgresql-operator/percona/pgbackrest"
-	perconaPG "github.com/percona/percona-postgresql-operator/percona/postgres"
-	pgv2 "github.com/percona/percona-postgresql-operator/pkg/apis/pgv2.percona.com/v2"
+	"github.com/superfly/percona-postgresql-operator/internal/logging"
+	"github.com/superfly/percona-postgresql-operator/percona/clientcmd"
+	"github.com/superfly/percona-postgresql-operator/percona/pgbackrest"
+	perconaPG "github.com/superfly/percona-postgresql-operator/percona/postgres"
+	pgv2 "github.com/superfly/percona-postgresql-operator/pkg/apis/pgv2.percona.com/v2"
 )
 
 const (

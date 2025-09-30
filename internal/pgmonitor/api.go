@@ -22,7 +22,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/percona/percona-postgresql-operator/internal/logging"
+	"github.com/superfly/percona-postgresql-operator/internal/logging"
 )
 
 type Executor func(

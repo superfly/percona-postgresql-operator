@@ -19,7 +19,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	"github.com/percona/percona-postgresql-operator/internal/controller/runtime"
+	"github.com/superfly/percona-postgresql-operator/internal/controller/runtime"
 )
 
 // https://pkg.go.dev/sigs.k8s.io/controller-runtime/pkg/envtest#pkg-constants

@@ -17,7 +17,7 @@ import (
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
-	"github.com/percona/percona-postgresql-operator/internal/logging"
+	"github.com/superfly/percona-postgresql-operator/internal/logging"
 )
 
 var (
