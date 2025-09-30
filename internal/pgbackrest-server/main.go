@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"github.com/superfly/percona-postgresql-operator/cmd/pgbackrest-server/api"
+	"github.com/superfly/percona-postgresql-operator/internal/pgbackrest-server/api"
 )
 
 func main() {
@@ -13,7 +13,7 @@ func main() {
 	r = r.PathPrefix("/pgbackrest").Subrouter()
 
 	// Endpoints
-	r.HandleFunc("/info", api.InfoCommandHandler).Methods("POST")
+	r.HandleFunc("/info", api.InfoCommandHandler)
 
 	http.Handle("/", r)
 	err := http.ListenAndServe(":4422", nil)

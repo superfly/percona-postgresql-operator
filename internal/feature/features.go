@@ -86,6 +86,9 @@ const (
 
 	// Support VolumeSnapshots
 	VolumeSnapshots = "VolumeSnapshots"
+
+	// Use HTTP for interacting with pgBackRest
+	PGBackRestHTTP = "PGBackRestHTTP"
 )
 
 // NewGate returns a MutableGate with the Features defined in this package.
@@ -101,6 +104,7 @@ func NewGate() MutableGate {
 		PGBouncerSidecars:    {Default: false, PreRelease: featuregate.Alpha},
 		TablespaceVolumes:    {Default: false, PreRelease: featuregate.Alpha},
 		VolumeSnapshots:      {Default: false, PreRelease: featuregate.Alpha},
+		PGBackRestHTTP:       {Default: true, PreRelease: featuregate.Alpha},
 	}); err != nil {
 		panic(err)
 	}

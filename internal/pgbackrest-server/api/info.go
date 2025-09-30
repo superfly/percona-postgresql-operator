@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/superfly/percona-postgresql-operator/cmd/pgbackrest-server/exec"
+	"github.com/superfly/percona-postgresql-operator/internal/pgbackrest-server/exec"
 )
 
 type InfoCommandOptions struct {

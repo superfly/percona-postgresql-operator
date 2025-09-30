@@ -5,12 +5,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"strconv"
 	"strings"
 
+	"github.com/hashicorp/go-cleanhttp"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/superfly/percona-postgresql-operator/internal/feature"
 	"github.com/superfly/percona-postgresql-operator/internal/naming"
+	pgbackrestapi "github.com/superfly/percona-postgresql-operator/internal/pgbackrest-server/api"
 	"github.com/superfly/percona-postgresql-operator/percona/clientcmd"
 	v2 "github.com/superfly/percona-postgresql-operator/pkg/apis/pgv2.percona.com/v2"
 )
@@ -50,21 +55,59 @@ const (
 )
 
 func GetInfo(ctx context.Context, pod *corev1.Pod, repoName string) (InfoOutput, error) {
-	stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
-
-	c, err := clientcmd.NewClient()
-	if err != nil {
-		return InfoOutput{}, errors.Wrap(err, "failed to create client")
-	}
-
-	if err := c.Exec(ctx, pod, naming.ContainerDatabase, nil, stdout, stderr, "pgbackrest", "info", "--output=json", "--repo="+strings.TrimPrefix(repoName, "repo")); err != nil {
-		return InfoOutput{}, errors.Wrapf(err, "exec: %s", stderr.String())
-	}
-
 	out := InfoOutput{}
 
-	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
-		return InfoOutput{}, errors.Wrap(err, "failed to unmarshal pgBackRest info output")
+	if feature.Enabled(ctx, feature.PGBackRestHTTP) {
+		repo, err := strconv.Atoi(strings.TrimPrefix(repoName, "repo"))
+		if err != nil {
+			return InfoOutput{}, errors.Wrap(err, "failed to parse repo number")
+		}
+
+		opts := pgbackrestapi.InfoCommandOptions{
+			Output: "json",
+			Repo:   repo,
+		}
+
+		var body bytes.Buffer
+		err = json.NewEncoder(&body).Encode(opts)
+		if err != nil {
+			return InfoOutput{}, errors.Wrap(err, "failed to marshal pgBackRest info options")
+		}
+
+		url := fmt.Sprintf("https://%s.%s-pods.%s.svc:4422/pgbackrest/api", pod.Name, pod.Namespace, pod.Namespace)
+		req, err := http.NewRequest(http.MethodPost, url, &body)
+		if err != nil {
+			return InfoOutput{}, errors.Wrap(err, "failed to create request")
+		}
+		req.Header.Set("Content-Type", "application/json")
+		// req.Header.Set("User-Agent", "")
+
+		client := &http.Client{
+			Transport: cleanhttp.DefaultPooledTransport(),
+		}
+		resp, err := client.Do(req)
+
+		if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+			return InfoOutput{}, errors.Wrap(err, "failed to decode pgBackRest info response")
+		}
+	} else {
+		stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
+
+		c, err := clientcmd.NewClient()
+		if err != nil {
+			return InfoOutput{}, errors.Wrap(err, "failed to create client")
+		}
+
+		if err := c.Exec(ctx, pod, naming.ContainerDatabase, nil, stdout, stderr, "pgbackrest", "info", "--output=json", "--repo="+strings.TrimPrefix(repoName, "repo")); err != nil {
+			return InfoOutput{}, errors.Wrapf(err, "exec: %s", stderr.String())
+		}
+
+		// if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
+		// 	return InfoOutput{}, errors.Wrap(err, "failed to unmarshal pgBackRest info output")
+		// }
+		if err := json.NewDecoder(stdout).Decode(&out); err != nil {
+			return InfoOutput{}, errors.Wrap(err, "failed to unmarshal pgBackRest info output")
+		}
 	}
 
 	for _, elem := range out {
