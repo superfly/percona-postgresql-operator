@@ -82,6 +82,19 @@ func (r *Reconciler) reconcileClusterPodService(
 		naming.LabelCluster: cluster.Name,
 	}
 
+	patroniPort := int32(8008)
+	if cluster.Spec.Patroni != nil && cluster.Spec.Patroni.Port != nil {
+		patroniPort = int32(*cluster.Spec.Patroni.Port)
+	}
+
+	clusterPodService.Spec.Ports = []corev1.ServicePort{
+		{
+			Name:     "patroni-api",
+			Port:     patroniPort,
+			Protocol: corev1.ProtocolTCP,
+		},
+	}
+
 	if err == nil {
 		err = errors.WithStack(r.apply(ctx, clusterPodService))
 	}
