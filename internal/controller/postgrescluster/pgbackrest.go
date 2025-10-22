@@ -595,6 +595,22 @@ func (r *Reconciler) generateRepoHostIntent(ctx context.Context, postgresCluster
 			naming.LabelData: naming.DataPGBackRest,
 		})
 
+	podAnnotations := naming.Merge(annotations)
+	// Tracks pgbackrest secret version in order to trigger repo-host updates upon change.
+	// Fixes a problem where repo-host certificates become stale.
+	existingSecret := &corev1.Secret{}
+	secretKey := client.ObjectKey{
+		Name:      naming.PGBackRestSecret(postgresCluster).Name,
+		Namespace: postgresCluster.GetNamespace(),
+	}
+
+	if err := r.Client.Get(ctx, secretKey, existingSecret); err == nil {
+		if podAnnotations == nil {
+			podAnnotations = make(map[string]string)
+		}
+		podAnnotations["postgres-operator.crunchydata.com/pgbackrest-secret-version"] = existingSecret.ResourceVersion
+	}
+
 	repo := &appsv1.StatefulSet{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: appsv1.SchemeGroupVersion.String(),
@@ -614,7 +630,7 @@ func (r *Reconciler) generateRepoHostIntent(ctx context.Context, postgresCluster
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels:      labels,
-					Annotations: annotations,
+					Annotations: podAnnotations,
 				},
 			},
 		},
