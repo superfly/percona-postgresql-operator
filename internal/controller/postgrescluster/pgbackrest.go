@@ -8,6 +8,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math/rand"
+	"os"
 	"reflect"
 	"regexp"
 	"sort"
@@ -24,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -604,11 +607,14 @@ func (r *Reconciler) generateRepoHostIntent(ctx context.Context, postgresCluster
 		Namespace: postgresCluster.GetNamespace(),
 	}
 
-	if err := r.Client.Get(ctx, secretKey, existingSecret); err == nil {
-		if podAnnotations == nil {
-			podAnnotations = make(map[string]string)
+	if podAnnotations == nil {
+		podAnnotations = make(map[string]string)
+	}
+
+	if shouldAnnotateRepoHost(podAnnotations) {
+		if err := r.Client.Get(ctx, secretKey, existingSecret); err == nil {
+			podAnnotations["postgres-operator.crunchydata.com/pgbackrest-secret-version"] = existingSecret.ResourceVersion
 		}
-		podAnnotations["postgres-operator.crunchydata.com/pgbackrest-secret-version"] = existingSecret.ResourceVersion
 	}
 
 	repo := &appsv1.StatefulSet{
@@ -762,6 +768,36 @@ func (r *Reconciler) generateRepoHostIntent(ctx context.Context, postgresCluster
 	}
 
 	return repo, nil
+}
+
+// In order to avoid multiple repo-hosts restarting per cycle, we adopt a gradual rollout strategy.
+// Distribution is (pseudo-)random, but we should see ~20 restarts/per cycle.
+// When all repo-hosts are annotated, this function can be removed.
+func shouldAnnotateRepoHost(annotations labels.Set) bool {
+	if _, exists := annotations["postgres-operator.crunchydata.com/pgbackrest-secret-version"]; exists {
+		// 1. If the annotation already exist, we keep it.
+		return true
+	}
+
+	// 2. Otherwise, given the start time of the rollout, we calculate a linear increasing threshold and
+	//    roll a d100. If the value of the dice is lower than the threshold, we add the annotation in this
+	//    reconciliation cycle. Note that this means a machine restart.
+	//      By the end of a week, the threshold should reach 100 and any dice value will allow for the
+	//    annotation to be added, effectively annotating all remaining pods.
+	if rolloutStartStr := os.Getenv("PGBACKREST_SECRET_ROLLOUT_START_TIME"); rolloutStartStr != "" {
+		if rolloutStart, err := time.Parse(time.RFC3339, rolloutStartStr); err == nil {
+			oneWeekInMinutes := 7 * 24 * 60
+			minutesElapsed := int(time.Since(rolloutStart).Minutes())
+
+			// Increases every minute. Reconciliation cycles happen every 10 minutes.
+			threshold := min((minutesElapsed*100)/oneWeekInMinutes, 100)
+			d100 := rand.Intn(100)
+
+			return d100 <= threshold
+		}
+	}
+
+	return false
 }
 
 func (r *Reconciler) generateRepoVolumeIntent(postgresCluster *v1beta1.PostgresCluster,
