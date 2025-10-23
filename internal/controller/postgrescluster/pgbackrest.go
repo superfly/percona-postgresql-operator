@@ -599,6 +599,18 @@ func (r *Reconciler) generateRepoHostIntent(ctx context.Context, postgresCluster
 		})
 
 	podAnnotations := naming.Merge(annotations)
+
+	// Preserve existing pod template annotations from the current StatefulSet.
+	// This ensures annotations like pgbackrest-secret-version persist across reconciliations.
+	for _, host := range repoResources.hosts {
+		if host.Name == repoHostName {
+			if host.Spec.Template.Annotations != nil {
+				podAnnotations = naming.Merge(podAnnotations, host.Spec.Template.Annotations)
+			}
+			break
+		}
+	}
+
 	// Tracks pgbackrest secret version in order to trigger repo-host updates upon change.
 	// Fixes a problem where repo-host certificates become stale.
 	existingSecret := &corev1.Secret{}
