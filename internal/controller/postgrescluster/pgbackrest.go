@@ -611,9 +611,19 @@ func (r *Reconciler) generateRepoHostIntent(ctx context.Context, postgresCluster
 		podAnnotations = make(map[string]string)
 	}
 
-	if shouldAnnotateRepoHost(podAnnotations) {
+	log := logging.FromContext(ctx)
+	if shouldAnnotateRepoHost(ctx, podAnnotations) {
 		if err := r.Client.Get(ctx, secretKey, existingSecret); err == nil {
 			podAnnotations["postgres-operator.crunchydata.com/pgbackrest-secret-version"] = existingSecret.ResourceVersion
+			log.Info("Added pgbackrest-secret-version annotation to repo-host",
+				"repoHost", repoHostName,
+				"resourceVersion", existingSecret.ResourceVersion)
+
+		} else {
+			log.Info("Failed to fetch pgbackrest secret, skipping annotation",
+				"repoHost", repoHostName,
+				"secret", secretKey.Name,
+				"error", err)
 		}
 	}
 
@@ -773,9 +783,11 @@ func (r *Reconciler) generateRepoHostIntent(ctx context.Context, postgresCluster
 // In order to avoid multiple repo-hosts restarting per cycle, we adopt a gradual rollout strategy.
 // Distribution is (pseudo-)random, but we should see ~20 restarts/per cycle.
 // When all repo-hosts are annotated, this function can be removed.
-func shouldAnnotateRepoHost(annotations labels.Set) bool {
+func shouldAnnotateRepoHost(ctx context.Context, annotations labels.Set) bool {
+	log := logging.FromContext(ctx)
+
 	if _, exists := annotations["postgres-operator.crunchydata.com/pgbackrest-secret-version"]; exists {
-		// 1. If the annotation already exist, we keep it.
+		log.Info("Repo-host already has pgbackrest-secret-version annotation, keeping it")
 		return true
 	}
 
@@ -789,14 +801,26 @@ func shouldAnnotateRepoHost(annotations labels.Set) bool {
 			oneWeekInMinutes := 7 * 24 * 60
 			minutesElapsed := int(time.Since(rolloutStart).Minutes())
 
-			// Increases every minute. Reconciliation cycles happen every 10 minutes.
 			threshold := min((minutesElapsed*100)/oneWeekInMinutes, 100)
 			d100 := rand.Intn(100)
 
-			return d100 <= threshold
+			if d100 <= threshold {
+				log.Info("Rollout dice passed, will add pgbackrest-secret-version annotation",
+					"threshold", threshold, "dice", d100, "minutesElapsed", minutesElapsed)
+				return true
+			}
+
+			log.Info("Rollout dice failed, skipping pgbackrest-secret-version annotation",
+				"threshold", threshold, "dice", d100, "minutesElapsed", minutesElapsed)
+			return false
+		} else {
+			log.Info("Failed to parse PGBACKREST_SECRET_ROLLOUT_START_TIME, skipping annotation",
+				"value", rolloutStartStr, "error", err)
+			return false
 		}
 	}
 
+	log.Info("PGBACKREST_SECRET_ROLLOUT_START_TIME not set, skipping annotation")
 	return false
 }
 
