@@ -8,8 +8,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"math/rand"
-	"os"
 	"reflect"
 	"regexp"
 	"sort"
@@ -26,7 +24,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -598,45 +595,39 @@ func (r *Reconciler) generateRepoHostIntent(ctx context.Context, postgresCluster
 			naming.LabelData: naming.DataPGBackRest,
 		})
 
-	podAnnotations := naming.Merge(annotations)
-
 	// Preserve existing pod template annotations from the current StatefulSet.
-	// This ensures annotations like pgbackrest-secret-version persist across reconciliations.
+	var podAnnotations map[string]string
 	for _, host := range repoResources.hosts {
 		if host.Name == repoHostName {
 			if host.Spec.Template.Annotations != nil {
-				podAnnotations = naming.Merge(podAnnotations, host.Spec.Template.Annotations)
+				podAnnotations = naming.Merge(host.Spec.Template.Annotations)
 			}
 			break
 		}
-	}
-
-	// Tracks pgbackrest secret version in order to trigger repo-host updates upon change.
-	// Fixes a problem where repo-host certificates become stale.
-	existingSecret := &corev1.Secret{}
-	secretKey := client.ObjectKey{
-		Name:      naming.PGBackRestSecret(postgresCluster).Name,
-		Namespace: postgresCluster.GetNamespace(),
 	}
 
 	if podAnnotations == nil {
 		podAnnotations = make(map[string]string)
 	}
 
-	log := logging.FromContext(ctx)
-	if shouldAnnotateRepoHost(ctx, podAnnotations) {
-		if err := r.Client.Get(ctx, secretKey, existingSecret); err == nil {
-			podAnnotations["postgres-operator.crunchydata.com/pgbackrest-secret-version"] = existingSecret.ResourceVersion
-			log.Info("Added pgbackrest-secret-version annotation to repo-host",
-				"repoHost", repoHostName,
-				"resourceVersion", existingSecret.ResourceVersion)
+	existingSecret := &corev1.Secret{}
+	secretKey := client.ObjectKey{
+		Name:      naming.PGBackRestSecret(postgresCluster).Name,
+		Namespace: postgresCluster.GetNamespace(),
+	}
 
-		} else {
-			log.Info("Failed to fetch pgbackrest secret, skipping annotation",
-				"repoHost", repoHostName,
-				"secret", secretKey.Name,
-				"error", err)
-		}
+	log := logging.FromContext(ctx)
+
+	// Tracks pgbackrest secret version in order to trigger repo-host updates upon change.
+	// Fixes a problem where repo-host certificates become stale.
+	if err := r.Client.Get(ctx, secretKey, existingSecret); err == nil {
+		// NOTE(juliana): This only triggers a pod restart when it changes.
+		// We can safely assign this value in every reconciliation cycle.
+		podAnnotations["postgres-operator.crunchydata.com/pgbackrest-secret-version"] = existingSecret.ResourceVersion
+	} else {
+		log.Error(err, "Failed to fetch pgbackrest secret, skipping annotation",
+			"repoHost", repoHostName,
+			"secret", secretKey.Name)
 	}
 
 	repo := &appsv1.StatefulSet{
@@ -790,50 +781,6 @@ func (r *Reconciler) generateRepoHostIntent(ctx context.Context, postgresCluster
 	}
 
 	return repo, nil
-}
-
-// In order to avoid multiple repo-hosts restarting per cycle, we adopt a gradual rollout strategy.
-// Distribution is (pseudo-)random, but we should see ~20 restarts/per cycle.
-// When all repo-hosts are annotated, this function can be removed.
-func shouldAnnotateRepoHost(ctx context.Context, annotations labels.Set) bool {
-	log := logging.FromContext(ctx)
-
-	if _, exists := annotations["postgres-operator.crunchydata.com/pgbackrest-secret-version"]; exists {
-		log.Info("Repo-host already has pgbackrest-secret-version annotation, keeping it")
-		return true
-	}
-
-	// 2. Otherwise, given the start time of the rollout, we calculate a linear increasing threshold and
-	//    roll a d100. If the value of the dice is lower than the threshold, we add the annotation in this
-	//    reconciliation cycle. Note that this means a machine restart.
-	//      By the end of a week, the threshold should reach 100 and any dice value will allow for the
-	//    annotation to be added, effectively annotating all remaining pods.
-	if rolloutStartStr := os.Getenv("PGBACKREST_SECRET_ROLLOUT_START_TIME"); rolloutStartStr != "" {
-		if rolloutStart, err := time.Parse(time.RFC3339, rolloutStartStr); err == nil {
-			oneWeekInMinutes := 7 * 24 * 60
-			minutesElapsed := int(time.Since(rolloutStart).Minutes())
-
-			threshold := min((minutesElapsed*100)/oneWeekInMinutes, 100)
-			d100 := rand.Intn(100)
-
-			if d100 <= threshold {
-				log.Info("Rollout dice passed, will add pgbackrest-secret-version annotation",
-					"threshold", threshold, "dice", d100, "minutesElapsed", minutesElapsed)
-				return true
-			}
-
-			log.Info("Rollout dice failed, skipping pgbackrest-secret-version annotation",
-				"threshold", threshold, "dice", d100, "minutesElapsed", minutesElapsed)
-			return false
-		} else {
-			log.Info("Failed to parse PGBACKREST_SECRET_ROLLOUT_START_TIME, skipping annotation",
-				"value", rolloutStartStr, "error", err)
-			return false
-		}
-	}
-
-	log.Info("PGBACKREST_SECRET_ROLLOUT_START_TIME not set, skipping annotation")
-	return false
 }
 
 func (r *Reconciler) generateRepoVolumeIntent(postgresCluster *v1beta1.PostgresCluster,
