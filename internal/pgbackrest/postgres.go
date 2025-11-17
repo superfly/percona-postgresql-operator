@@ -39,7 +39,8 @@ func PostgreSQL(
 	outParameters.Mandatory.Add("archive_mode", "on")
 
 	if backupsEnabled {
-		outParameters.Mandatory.Add("archive_command", archive)
+		// outParameters.Mandatory.Add("archive_command", archive)
+		outParameters.Mandatory.Add("archive_command", `true`)
 	} else {
 		// If backups are disabled, keep archive_mode on (to avoid a Postgres restart)
 		// and throw away WAL.
