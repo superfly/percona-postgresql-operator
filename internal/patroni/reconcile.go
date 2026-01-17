@@ -104,7 +104,14 @@ func InstancePod(ctx context.Context,
 		}
 	}
 
-	container.Command = []string{"patroni", configDirectory}
+	// Use entrypoint wrapper if available (indicated by version file), otherwise run patroni directly.
+	// The wrapper starts the OOM adjuster and shared memory cleanup before exec'ing to patroni.
+	// Ref: https://github.com/superfly/mpg-postgres-image/pull/3
+	container.Command = []string{
+		"sh", "-c",
+		`[ -f /usr/local/bin/.entrypoint-wrapper-version ] && exec /usr/local/bin/entrypoint-wrapper.sh "$@" || exec "$@"`,
+		"--", "patroni", configDirectory,
+	}
 
 	container.Env = append(container.Env,
 		instanceEnvironment(inCluster, inClusterPodService, inPatroniLeaderService,
