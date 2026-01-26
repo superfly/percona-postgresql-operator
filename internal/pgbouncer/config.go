@@ -120,6 +120,8 @@ func clusterINI(cluster *v1beta1.PostgresCluster) string {
 		"server_tls_sslmode": "verify-full",
 		"server_tls_ca_file": certBackendAuthorityAbsolutePath,
 
+		// Disable Unix sockets to keep the filesystem read-only.
+		"unix_socket_dir": "",
 	}
 
 	// Override the above with any specified settings.
