@@ -173,4 +173,10 @@ type PGBouncerPodStatus struct {
 
 	// Total number of non-terminated pods.
 	Replicas int32 `json:"replicas,omitempty"`
+
+	// Identifies the primary pod UID when RECONNECT was last triggered.
+	// Used to detect failovers and force PgBouncer to establish new
+	// server connections to the correct primary.
+	// +optional
+	LastReconnectPrimaryUID string `json:"lastReconnectPrimaryUID,omitempty"`
 }
