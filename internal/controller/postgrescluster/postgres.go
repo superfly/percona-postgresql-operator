@@ -204,7 +204,7 @@ func (r *Reconciler) reconcilePostgresDatabases(
 
 	// Find the PostgreSQL instance that can execute SQL that writes system
 	// catalogs. When there is none, return early.
-	pod, _ := instances.writablePod(container)
+	pod, _ := instances.WritablePod(container)
 	if pod == nil {
 		return nil
 	}
@@ -1047,7 +1047,7 @@ func (r *Reconciler) reconcileDatabaseInitSQL(ctx context.Context,
 	// Now that we have the data provided by the user. We can check for a
 	// writable pod and get the podExecutor for the pod's database container
 	var podExecutor postgres.Executor
-	pod, _ := instances.writablePod(naming.ContainerDatabase)
+	pod, _ := instances.WritablePod(naming.ContainerDatabase)
 	if pod == nil {
 		log.V(1).Info("Could not find a pod with a writable database container.")
 		return nil

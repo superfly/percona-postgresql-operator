@@ -58,7 +58,7 @@ func (r *Reconciler) reconcilePGMonitorExporter(ctx context.Context,
 
 	// Find the PostgreSQL instance that can execute SQL that writes to every
 	// database. When there is none, return early.
-	writablePod, writableInstance = instances.writablePod(naming.ContainerDatabase)
+	writablePod, writableInstance = instances.WritablePod(naming.ContainerDatabase)
 	if writableInstance == nil || writablePod == nil {
 		return nil
 	}

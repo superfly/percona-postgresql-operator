@@ -55,7 +55,8 @@ func (r *Reconciler) reconcilePGBouncer(
 		err = r.reconcilePGBouncerInPostgreSQL(ctx, cluster, instances, secret)
 	}
 	if err == nil {
-		// Trigger RECONNECT if primary has changed to force new server connections.
+		// Send SIGTERM to PgBouncer if primary has changed, triggering graceful
+		// shutdown and container restart. New process will do fresh DNS lookup.
 		// This prevents stale connections from routing traffic to a demoted replica.
 		err = r.reconcilePGBouncerReconnect(ctx, cluster, instances)
 	}
@@ -116,18 +117,9 @@ func (r *Reconciler) reconcilePGBouncerInPostgreSQL(
 ) error {
 	log := logging.FromContext(ctx)
 
-	var pod *corev1.Pod
-
 	// Find the PostgreSQL instance that can execute SQL that writes to every
 	// database. When there is none, return early.
-
-	for _, instance := range instances.forCluster {
-		writable, known := instance.IsWritable()
-		if writable && known && len(instance.Pods) > 0 {
-			pod = instance.Pods[0]
-			break
-		}
-	}
+	pod, _ := instances.WritablePod(naming.ContainerDatabase)
 	if pod == nil {
 		return nil
 	}
@@ -590,8 +582,24 @@ func (r *Reconciler) reconcilePGBouncerPodDisruptionBudget(
 	return err
 }
 
-// reconcilePGBouncerReconnect triggers a RECONNECT command on all PgBouncer
-// pods when the primary has changed. This forces PgBouncer to establish new
+// pgbouncerPods returns a list of PgBouncer pods for the given cluster.
+func (r *Reconciler) pgbouncerPods(ctx context.Context, cluster *v1beta1.PostgresCluster) (*corev1.PodList, error) {
+	pgbouncerPods := &corev1.PodList{}
+	selector, err := naming.AsSelector(naming.ClusterPGBouncerSelector(cluster))
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	if err := r.Client.List(ctx, pgbouncerPods,
+		client.InNamespace(cluster.Namespace),
+		client.MatchingLabelsSelector{Selector: selector}); err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return pgbouncerPods, nil
+}
+
+// reconcilePGBouncerReconnect is a sub-reconciler that signals PgBouncer pods
+// when the primary has changed. This forces PgBouncer to establish new
 // server connections to the correct primary, preventing stale connections
 // from routing traffic to a demoted replica after failover.
 //
@@ -599,6 +607,7 @@ func (r *Reconciler) reconcilePGBouncerPodDisruptionBudget(
 // to the pool mode. In transaction mode, this happens after each transaction.
 // In session mode, this happens when the client disconnects - so persistent
 // clients may continue hitting the old primary until they reconnect.
+// It returns error for integration with the parent reconciler's error handling chain.
 func (r *Reconciler) reconcilePGBouncerReconnect(
 	ctx context.Context, cluster *v1beta1.PostgresCluster,
 	instances *observedInstances,
@@ -610,79 +619,69 @@ func (r *Reconciler) reconcilePGBouncerReconnect(
 		return nil
 	}
 
-	var primaryPod *corev1.Pod
-	for _, instance := range instances.forCluster {
-		// Same condition as writablePod fn
-		if writable, known := instance.IsWritable(); writable && known && len(instance.Pods) > 0 {
-			primaryPod = instance.Pods[0]
-			break
-		}
-	}
-
+	primaryPod, _ := instances.WritablePod(naming.ContainerDatabase)
 	if primaryPod == nil {
 		// We will retry later.
-		log.V(1).Info("No writable instance found, skipping PgBouncer RECONNECT")
+		log.V(1).Info("No writable instance found, skipping PgBouncer failover signal")
 		return nil
 	}
 
 	currentPrimaryUID := string(primaryPod.UID)
-	lastReconnectUID := cluster.Status.Proxy.PGBouncer.LastReconnectPrimaryUID
+	lastFailoverUID := cluster.Status.Proxy.PGBouncer.LastFailoverPrimaryUID
 
-	if currentPrimaryUID == lastReconnectUID {
-		// Primary hasn't changed, no need to Reconnect.
+	if currentPrimaryUID == lastFailoverUID {
+		// Primary hasn't changed, no need to trigger failover.
 		return nil
 	}
 
-	log.Info("Primary changed, triggering PgBouncer RECONNECT",
-		"previousPrimaryUID", lastReconnectUID,
+	log.Info("Primary changed, triggering PgBouncer failover signal (SIGTERM)",
+		"previousPrimaryUID", lastFailoverUID,
 		"currentPrimaryUID", currentPrimaryUID,
 		"currentPrimaryName", primaryPod.Name)
 
-	pgbouncerPods := &corev1.PodList{}
-	selector, err := naming.AsSelector(naming.ClusterPGBouncerSelector(cluster))
+	pgbouncerPods, err := r.pgbouncerPods(ctx, cluster)
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 
-	if err := r.Client.List(ctx, pgbouncerPods,
-		client.InNamespace(cluster.Namespace),
-		client.MatchingLabelsSelector{Selector: selector}); err != nil {
-		return errors.WithStack(err)
-	}
-
-	// Send RECONNECT to each running PgBouncer pod
-	var reconnectErr error
+	// Send SIGTERM to each running PgBouncer pod to trigger graceful shutdown
+	// and container restart. New PgBouncer process will do fresh DNS lookup.
+	var failoverErrs []error
 	successCount := 0
 
 	for i := range pgbouncerPods.Items {
-		pod := &pgbouncerPods.Items[i]
+		pod := pgbouncerPods.Items[i] // Copy value to avoid closure reference issues
 		if pod.Status.Phase != corev1.PodRunning {
 			continue
 		}
 
-		exec := func(ctx context.Context, stdin io.Reader, stdout, stderr io.Writer, command ...string) error {
+		if err := pgbouncer.SignalFailover(ctx, func(ctx context.Context, stdin io.Reader, stdout, stderr io.Writer, command ...string) error {
 			return r.PodExec(ctx, pod.Namespace, pod.Name, naming.ContainerPGBouncer, stdin, stdout, stderr, command...)
-		}
-
-		if err := pgbouncer.Reconnect(ctx, exec); err != nil {
-			log.Error(err, "PgBouncer RECONNECT: failed to issue command to pod.", "pod", pod.Name)
-			reconnectErr = err
+		}); err != nil {
+			log.Error(err, "PgBouncer failover signal: failed to send SIGTERM to pod", "pod", pod.Name)
+			failoverErrs = append(failoverErrs, fmt.Errorf("pod %s: %w", pod.Name, err))
 		} else {
 			successCount++
 		}
 	}
 
-	// If we can't send a RECONNECT command to one of the pods, we won't update the LastReconnectPrimaryUID.
-	// This means this will run again in the next reconciliation loop.
-	if reconnectErr == nil {
-		cluster.Status.Proxy.PGBouncer.LastReconnectPrimaryUID = currentPrimaryUID
+	// Update status only if all pods were successfully signaled.
+	// Partial failures will be retried in the next reconciliation loop.
+	if len(failoverErrs) == 0 {
+		cluster.Status.Proxy.PGBouncer.LastFailoverPrimaryUID = currentPrimaryUID
 	}
 
-	log.Info("PgBouncer RECONNECT: done",
-		"failed", reconnectErr != nil,
+	log.Info("PgBouncer failover signal: done",
+		"failed", len(failoverErrs) > 0,
 		"successCount", successCount,
+		"failureCount", len(failoverErrs),
 		"totalPods", len(pgbouncerPods.Items),
 	)
 
-	return reconnectErr
+	// Return aggregated errors if any pods failed
+	if len(failoverErrs) > 0 {
+		return fmt.Errorf("failed to signal %d of %d pgbouncer pods: %w",
+			len(failoverErrs), len(pgbouncerPods.Items), failoverErrs[0])
+	}
+	return nil
 }

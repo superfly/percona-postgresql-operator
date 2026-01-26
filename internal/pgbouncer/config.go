@@ -120,17 +120,6 @@ func clusterINI(cluster *v1beta1.PostgresCluster) string {
 		"server_tls_sslmode": "verify-full",
 		"server_tls_ca_file": certBackendAuthorityAbsolutePath,
 
-		// Enable Unix socket for admin console access. The special user
-		// "pgbouncer" can connect without a password when using a Unix socket
-		// from the same UID as the running process. This allows the operator
-		// to send admin commands like RECONNECT after failover.
-		// Ref.: https://www.pgbouncer.org/usage.html#admin-console
-		"unix_socket_dir": "/tmp/pgbouncer",
-
-		// Allow the "pgbouncer" user to run admin commands (PAUSE, RESUME,
-		// RECONNECT, etc.) on the admin console. Combined with unix_socket_dir,
-		// this enables password-free admin access from within the container.
-		"admin_users": "pgbouncer",
 	}
 
 	// Override the above with any specified settings.

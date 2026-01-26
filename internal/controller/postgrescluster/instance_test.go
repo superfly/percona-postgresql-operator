@@ -381,7 +381,7 @@ func TestWritablePod(t *testing.T) {
 	t.Run("empty observed", func(t *testing.T) {
 		observed := &observedInstances{}
 
-		pod, instance := observed.writablePod("container")
+		pod, instance := observed.WritablePod("container")
 		assert.Assert(t, pod == nil)
 		assert.Assert(t, instance == nil)
 	})
@@ -415,7 +415,7 @@ func TestWritablePod(t *testing.T) {
 		terminating, known := observed.forCluster[0].IsTerminating()
 		assert.Assert(t, terminating && known)
 
-		pod, instance := observed.writablePod("container")
+		pod, instance := observed.WritablePod("container")
 		assert.Assert(t, pod == nil)
 		assert.Assert(t, instance == nil)
 	})
@@ -447,7 +447,7 @@ func TestWritablePod(t *testing.T) {
 		running, known := observed.forCluster[0].IsRunning(container)
 		assert.Check(t, !running && known)
 
-		pod, instance := observed.writablePod("container")
+		pod, instance := observed.WritablePod("container")
 		assert.Assert(t, pod == nil)
 		assert.Assert(t, instance == nil)
 	})
@@ -480,7 +480,7 @@ func TestWritablePod(t *testing.T) {
 		writable, known := observed.forCluster[0].IsWritable()
 		assert.Check(t, !writable && known)
 
-		pod, instance := observed.writablePod("container")
+		pod, instance := observed.WritablePod("container")
 		assert.Assert(t, pod == nil)
 		assert.Assert(t, instance == nil)
 	})
@@ -517,7 +517,7 @@ func TestWritablePod(t *testing.T) {
 		running, known := observed.forCluster[0].IsRunning(container)
 		assert.Check(t, running && known)
 
-		pod, instance := observed.writablePod("container")
+		pod, instance := observed.WritablePod("container")
 		assert.Assert(t, pod != nil)
 		assert.Assert(t, instance != nil)
 	})
