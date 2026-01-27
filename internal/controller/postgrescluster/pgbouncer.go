@@ -622,11 +622,6 @@ func (r *Reconciler) pgbouncerPods(ctx context.Context, cluster *v1beta1.Postgre
 // [1] https://www.pgbouncer.org/usage.html#shutdown
 // [2] https://www.pgbouncer.org/usage.html#signals
 // [3] https://github.com/pgbouncer/pgbouncer/issues/1361
-//
-// Note: We don't use RECONNECT because it closes server connections when they are "released"
-// according to the pool mode. In transaction mode, this happens after each transaction. In session
-// mode, this happens when the client disconnects - so persistent clients may continue hitting
-// the old primary until they reconnect.
 func (r *Reconciler) reconcilePGBouncerReconnect(
 	ctx context.Context, cluster *v1beta1.PostgresCluster,
 	instances *observedInstances,
