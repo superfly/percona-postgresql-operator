@@ -6,10 +6,11 @@ package postgrescluster
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
-	"github.com/pkg/errors"
+	pkgerrors "github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
@@ -55,7 +56,7 @@ func (r *Reconciler) reconcilePGBouncer(
 		err = r.reconcilePGBouncerInPostgreSQL(ctx, cluster, instances, secret)
 	}
 	if err == nil {
-		// Send SIGTERM to PgBouncer if primary has changed, triggering graceful
+		// Stop PgBouncer pods if primary has changed, triggering graceful
 		// shutdown and container restart. New process will do fresh DNS lookup.
 		// This prevents stale connections from routing traffic to a demoted replica.
 		err = r.reconcilePGBouncerReconnect(ctx, cluster, instances)
@@ -77,14 +78,14 @@ func (r *Reconciler) reconcilePGBouncerConfigMap(
 		// PgBouncer is disabled; delete the ConfigMap if it exists. Check the
 		// client cache first using Get.
 		key := client.ObjectKeyFromObject(configmap)
-		err := errors.WithStack(r.Client.Get(ctx, key, configmap))
+		err := pkgerrors.WithStack(r.Client.Get(ctx, key, configmap))
 		if err == nil {
-			err = errors.WithStack(r.deleteControlled(ctx, cluster, configmap))
+			err = pkgerrors.WithStack(r.deleteControlled(ctx, cluster, configmap))
 		}
 		return nil, client.IgnoreNotFound(err)
 	}
 
-	err := errors.WithStack(r.setControllerReference(cluster, configmap))
+	err := pkgerrors.WithStack(r.setControllerReference(cluster, configmap))
 
 	configmap.Annotations = naming.Merge(
 		cluster.Spec.Metadata.GetAnnotationsOrNil(),
@@ -101,7 +102,7 @@ func (r *Reconciler) reconcilePGBouncerConfigMap(
 		pgbouncer.ConfigMap(cluster, configmap)
 	}
 	if err == nil {
-		err = errors.WithStack(r.apply(ctx, configmap))
+		err = pkgerrors.WithStack(r.apply(ctx, configmap))
 	}
 
 	return configmap, err
@@ -137,12 +138,12 @@ func (r *Reconciler) reconcilePGBouncerInPostgreSQL(
 	}
 
 	action := func(ctx context.Context, exec postgres.Executor) error {
-		return errors.WithStack(pgbouncer.EnableInPostgreSQL(ctx, exec, clusterSecret, exposeSuperusers))
+		return pkgerrors.WithStack(pgbouncer.EnableInPostgreSQL(ctx, exec, clusterSecret, exposeSuperusers))
 	}
 	if cluster.Spec.Proxy == nil || cluster.Spec.Proxy.PGBouncer == nil {
 		// PgBouncer is disabled.
 		action = func(ctx context.Context, exec postgres.Executor) error {
-			return errors.WithStack(pgbouncer.DisableInPostgreSQL(ctx, exec))
+			return pkgerrors.WithStack(pgbouncer.DisableInPostgreSQL(ctx, exec))
 		}
 	}
 
@@ -198,7 +199,7 @@ func (r *Reconciler) reconcilePGBouncerSecret(
 	root *pki.RootCertificateAuthority, service *corev1.Service,
 ) (*corev1.Secret, error) {
 	existing := &corev1.Secret{ObjectMeta: naming.ClusterPGBouncer(cluster)}
-	err := errors.WithStack(
+	err := pkgerrors.WithStack(
 		r.Client.Get(ctx, client.ObjectKeyFromObject(existing), existing))
 	if client.IgnoreNotFound(err) != nil {
 		return nil, err
@@ -207,7 +208,7 @@ func (r *Reconciler) reconcilePGBouncerSecret(
 	if cluster.Spec.Proxy == nil || cluster.Spec.Proxy.PGBouncer == nil {
 		// PgBouncer is disabled; delete the Secret if it exists.
 		if err == nil {
-			err = errors.WithStack(r.deleteControlled(ctx, cluster, existing))
+			err = pkgerrors.WithStack(r.deleteControlled(ctx, cluster, existing))
 		}
 		return nil, client.IgnoreNotFound(err)
 	}
@@ -221,7 +222,7 @@ func (r *Reconciler) reconcilePGBouncerSecret(
 	// K8SPG-330: Keep this commented in case of conflicts.
 	// We don't want to delete TLS secrets on cluster deletion.
 	// if err == nil {
-	// 	err = errors.WithStack(r.setControllerReference(cluster, intent))
+	// 	err = pkgerrors.WithStack(r.setControllerReference(cluster, intent))
 	// }
 
 	intent.Annotations = naming.Merge(
@@ -239,7 +240,7 @@ func (r *Reconciler) reconcilePGBouncerSecret(
 		err = pgbouncer.Secret(ctx, cluster, root, existing, service, intent)
 	}
 	if err == nil {
-		err = errors.WithStack(r.apply(ctx, intent))
+		err = pkgerrors.WithStack(r.apply(ctx, intent))
 	}
 
 	return intent, err
@@ -320,7 +321,7 @@ func (r *Reconciler) generatePGBouncerService(
 	}
 	service.Spec.Ports = []corev1.ServicePort{servicePort}
 
-	err := errors.WithStack(r.setControllerReference(cluster, service))
+	err := pkgerrors.WithStack(r.setControllerReference(cluster, service))
 
 	return service, true, err
 }
@@ -338,15 +339,15 @@ func (r *Reconciler) reconcilePGBouncerService(
 		// PgBouncer is disabled; delete the Service if it exists. Check the client
 		// cache first using Get.
 		key := client.ObjectKeyFromObject(service)
-		err := errors.WithStack(r.Client.Get(ctx, key, service))
+		err := pkgerrors.WithStack(r.Client.Get(ctx, key, service))
 		if err == nil {
-			err = errors.WithStack(r.deleteControlled(ctx, cluster, service))
+			err = pkgerrors.WithStack(r.deleteControlled(ctx, cluster, service))
 		}
 		return nil, client.IgnoreNotFound(err)
 	}
 
 	if err == nil {
-		err = errors.WithStack(r.apply(ctx, service))
+		err = pkgerrors.WithStack(r.apply(ctx, service))
 	}
 	return service, err
 }
@@ -454,7 +455,7 @@ func (r *Reconciler) generatePGBouncerDeployment(
 	// set the image pull secrets, if any exist
 	deploy.Spec.Template.Spec.ImagePullSecrets = cluster.Spec.ImagePullSecrets
 
-	err := errors.WithStack(r.setControllerReference(cluster, deploy))
+	err := pkgerrors.WithStack(r.setControllerReference(cluster, deploy))
 
 	if err == nil {
 		pgbouncer.Pod(ctx, cluster, configmap, primaryCertificate, secret, &deploy.Spec.Template.Spec)
@@ -509,15 +510,15 @@ func (r *Reconciler) reconcilePGBouncerDeployment(
 		// PgBouncer is disabled; delete the Deployment if it exists. Check the
 		// client cache first using Get.
 		key := client.ObjectKeyFromObject(deploy)
-		err := errors.WithStack(r.Client.Get(ctx, key, deploy))
+		err := pkgerrors.WithStack(r.Client.Get(ctx, key, deploy))
 		if err == nil {
-			err = errors.WithStack(r.deleteControlled(ctx, cluster, deploy))
+			err = pkgerrors.WithStack(r.deleteControlled(ctx, cluster, deploy))
 		}
 		return client.IgnoreNotFound(err)
 	}
 
 	if err == nil {
-		err = errors.WithStack(r.apply(ctx, deploy))
+		err = pkgerrors.WithStack(r.apply(ctx, deploy))
 	}
 	return err
 }
@@ -534,9 +535,9 @@ func (r *Reconciler) reconcilePGBouncerPodDisruptionBudget(
 ) error {
 	deleteExistingPDB := func(cluster *v1beta1.PostgresCluster) error {
 		existing := &policyv1.PodDisruptionBudget{ObjectMeta: naming.ClusterPGBouncer(cluster)}
-		err := errors.WithStack(r.Client.Get(ctx, client.ObjectKeyFromObject(existing), existing))
+		err := pkgerrors.WithStack(r.Client.Get(ctx, client.ObjectKeyFromObject(existing), existing))
 		if err == nil {
-			err = errors.WithStack(r.deleteControlled(ctx, cluster, existing))
+			err = pkgerrors.WithStack(r.deleteControlled(ctx, cluster, existing))
 		}
 		return client.IgnoreNotFound(err)
 	}
@@ -577,7 +578,7 @@ func (r *Reconciler) reconcilePGBouncerPodDisruptionBudget(
 	}
 
 	if err == nil {
-		err = errors.WithStack(r.apply(ctx, pdb))
+		err = pkgerrors.WithStack(r.apply(ctx, pdb))
 	}
 	return err
 }
@@ -587,27 +588,45 @@ func (r *Reconciler) pgbouncerPods(ctx context.Context, cluster *v1beta1.Postgre
 	pgbouncerPods := &corev1.PodList{}
 	selector, err := naming.AsSelector(naming.ClusterPGBouncerSelector(cluster))
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, pkgerrors.WithStack(err)
 	}
 
 	if err := r.Client.List(ctx, pgbouncerPods,
 		client.InNamespace(cluster.Namespace),
 		client.MatchingLabelsSelector{Selector: selector}); err != nil {
-		return nil, errors.WithStack(err)
+		return nil, pkgerrors.WithStack(err)
 	}
 	return pgbouncerPods, nil
 }
 
-// reconcilePGBouncerReconnect is a sub-reconciler that signals PgBouncer pods
+// reconcilePGBouncerReconnect is a sub-reconciler that deletes PgBouncer pods
 // when the primary has changed. This forces PgBouncer to establish new
 // server connections to the correct primary, preventing stale connections
 // from routing traffic to a demoted replica after failover.
 //
-// Note: RECONNECT closes server connections when they are "released" according
-// to the pool mode. In transaction mode, this happens after each transaction.
-// In session mode, this happens when the client disconnects - so persistent
-// clients may continue hitting the old primary until they reconnect.
-// It returns error for integration with the parent reconciler's error handling chain.
+// Delete pod sends a SIGTERM to PgBouncer to trigger SHUTDOWN WAIT_FOR_CLIENTS [1]
+// mode, waiting for clients to gracefully disconnect [2]. This approach was
+// suggested by a PgBouncer maintainer [3] to deal with failovers in Kubernetes.
+//
+// What happens:
+//  1. Kubernetes sends SIGTERM [2] to PgBouncer
+//  2. PgBouncer enters SHUTDOWN WAIT_FOR_CLIENTS mode [1].
+//  3. After Kubernetes grace period (default 30s), SIGKILL is sent if process still hasn't exited
+//  4. Container is terminated and restarted by Kubernetes Deployment controller.
+//  5. New PgBouncer process does fresh DNS lookup → connects to current primary.
+//
+// This approach is more effective than RECONNECT command for session mode with persistent
+// clients (MPG clusters) because RECONNECT waits for clients to disconnect, which never happens
+// for persistent clients. SIGTERM will guarantee termination and restarts after a grace period.
+//
+// [1] https://www.pgbouncer.org/usage.html#shutdown
+// [2] https://www.pgbouncer.org/usage.html#signals
+// [3] https://github.com/pgbouncer/pgbouncer/issues/1361
+//
+// Note: We don't use RECONNECT because it closes server connections when they are "released"
+// according to the pool mode. In transaction mode, this happens after each transaction. In session
+// mode, this happens when the client disconnects - so persistent clients may continue hitting
+// the old primary until they reconnect.
 func (r *Reconciler) reconcilePGBouncerReconnect(
 	ctx context.Context, cluster *v1beta1.PostgresCluster,
 	instances *observedInstances,
@@ -644,28 +663,24 @@ func (r *Reconciler) reconcilePGBouncerReconnect(
 		return err
 	}
 
-	// Send SIGTERM to each running PgBouncer pod to trigger graceful shutdown
-	// and container restart. New PgBouncer process will do fresh DNS lookup.
 	var failoverErrs []error
 	successCount := 0
 
-	for i := range pgbouncerPods.Items {
-		pod := pgbouncerPods.Items[i] // Copy value to avoid closure reference issues
+	for _, pod := range pgbouncerPods.Items {
 		if pod.Status.Phase != corev1.PodRunning {
 			continue
 		}
 
-		if err := pgbouncer.SignalFailover(ctx, func(ctx context.Context, stdin io.Reader, stdout, stderr io.Writer, command ...string) error {
-			return r.PodExec(ctx, pod.Namespace, pod.Name, naming.ContainerPGBouncer, stdin, stdout, stderr, command...)
-		}); err != nil {
-			log.Error(err, "PgBouncer failover signal: failed to send SIGTERM to pod", "pod", pod.Name)
+		if err := r.Client.Delete(ctx, &pod); err != nil {
+			log.Error(err, "PgBouncer failover signal: failed to delete pod", "pod", pod.Name)
 			failoverErrs = append(failoverErrs, fmt.Errorf("pod %s: %w", pod.Name, err))
 		} else {
+			log.Info("PgBouncer failover signal: deleted pod for recreation", "pod", pod.Name)
 			successCount++
 		}
 	}
 
-	// Update status only if all pods were successfully signaled.
+	// Update status only if all pods were successfully stopped.
 	// Partial failures will be retried in the next reconciliation loop.
 	if len(failoverErrs) == 0 {
 		cluster.Status.Proxy.PGBouncer.LastFailoverPrimaryUID = currentPrimaryUID
@@ -678,10 +693,11 @@ func (r *Reconciler) reconcilePGBouncerReconnect(
 		"totalPods", len(pgbouncerPods.Items),
 	)
 
-	// Return aggregated errors if any pods failed
+	// Return aggregated errors if any failed
 	if len(failoverErrs) > 0 {
 		return fmt.Errorf("failed to signal %d of %d pgbouncer pods: %w",
-			len(failoverErrs), len(pgbouncerPods.Items), failoverErrs[0])
+			len(failoverErrs), len(pgbouncerPods.Items), errors.Join(failoverErrs...))
 	}
+
 	return nil
 }
