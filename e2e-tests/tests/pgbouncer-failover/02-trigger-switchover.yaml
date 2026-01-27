@@ -1,0 +1,55 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+timeout: 60
+commands:
+  - script: |-
+      set -o errexit
+      set -o xtrace
+
+      source ../../functions
+
+      LEADER=$(kubectl get pods -n "${NAMESPACE}" \
+        -l postgres-operator.crunchydata.com/role=primary \
+        -o jsonpath='{.items[0].metadata.name}')
+
+      echo "Current leader: $LEADER"
+
+      REPLICA=$(kubectl get pods -n "${NAMESPACE}" \
+        -l postgres-operator.crunchydata.com/role=replica \
+        -o jsonpath='{.items[0].metadata.name}')
+
+      echo "Replica to promote: $REPLICA"
+
+      kubectl get pods -n "${NAMESPACE}" \
+        -l postgres-operator.crunchydata.com/role=pgbouncer \
+        -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' \
+        > /tmp/pgbouncer-pods-before.txt
+
+      echo "PgBouncer pods before switchover:"
+      cat /tmp/pgbouncer-pods-before.txt
+
+      kubectl exec "$LEADER" -c database -n "${NAMESPACE}" -- \
+        patronictl switchover \
+        --leader "$LEADER" \
+        --candidate "$REPLICA" \
+        --force
+
+      echo "Switchover triggered successfully"
+
+      # Wait for PgBouncer pods to be recreated (they should be deleted and recreated)
+      sleep 15
+
+      kubectl get pods -n "${NAMESPACE}" \
+        -l postgres-operator.crunchydata.com/role=pgbouncer \
+        -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' \
+        > /tmp/pgbouncer-pods-after.txt
+
+      echo "PgBouncer pods after switchover:"
+      cat /tmp/pgbouncer-pods-after.txt
+
+      if diff /tmp/pgbouncer-pods-before.txt /tmp/pgbouncer-pods-after.txt > /dev/null; then
+        echo "ERROR: PgBouncer pods were NOT recreated after failover!"
+        exit 1
+      else
+        echo "SUCCESS: PgBouncer pods were recreated after failover"
+      fi
