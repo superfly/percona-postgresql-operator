@@ -648,6 +648,17 @@ func (r *Reconciler) reconcilePGBouncerReconnect(
 		return nil
 	}
 
+	if lastFailoverUID == "" {
+		// First time seeing this cluster or status field was just added.
+		// Initialize with current primary UID without triggering pod restart.
+		log.V(1).Info("Initializing PgBouncer failover tracking",
+			"currentPrimaryUID", currentPrimaryUID,
+			"currentPrimaryName", primaryPod.Name)
+
+		cluster.Status.Proxy.PGBouncer.LastFailoverPrimaryUID = currentPrimaryUID
+		return nil
+	}
+
 	log.Info("Primary changed, triggering PgBouncer failover signal (SIGTERM)",
 		"previousPrimaryUID", lastFailoverUID,
 		"currentPrimaryUID", currentPrimaryUID,
