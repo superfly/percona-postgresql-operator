@@ -173,4 +173,10 @@ type PGBouncerPodStatus struct {
 
 	// Total number of non-terminated pods.
 	Replicas int32 `json:"replicas,omitempty"`
+
+	// Identifies the primary pod UID when failover signal (SIGTERM) was last triggered.
+	// Used to detect failovers and trigger PgBouncer container restart for fresh
+	// connection pool and DNS lookup to the correct primary.
+	// +optional
+	LastFailoverPrimaryUID string `json:"lastFailoverPrimaryUID,omitempty"`
 }

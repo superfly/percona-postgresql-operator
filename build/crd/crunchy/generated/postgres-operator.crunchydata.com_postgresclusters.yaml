@@ -22972,6 +22972,12 @@ spec:
                 properties:
                   pgBouncer:
                     properties:
+                      lastFailoverPrimaryUID:
+                        description: |-
+                          Identifies the primary pod UID when failover signal (SIGTERM) was last triggered.
+                          Used to detect failovers and trigger PgBouncer container restart for fresh
+                          connection pool and DNS lookup to the correct primary.
+                        type: string
                       postgresRevision:
                         description: |-
                           Identifies the revision of PgBouncer assets that have been installed into

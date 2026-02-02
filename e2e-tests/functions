@@ -54,6 +54,7 @@ deploy_operator() {
 		disable_telemetry=false
 	fi
 	yq eval '.spec.template.spec.containers[0].image = "'${IMAGE}'"' "${DEPLOY_DIR}/${cw_prefix}operator.yaml" \
+    	| yq eval '.spec.template.spec.containers[0].imagePullPolicy = "IfNotPresent"' - \
 		| yq eval '(.spec.template.spec.containers[] | select(.name=="operator") | .env[] | select(.name=="DISABLE_TELEMETRY") | .value) = "'${disable_telemetry}'"' - \
 		| kubectl -n "${OPERATOR_NS:-$NAMESPACE}" apply -f -
 }
