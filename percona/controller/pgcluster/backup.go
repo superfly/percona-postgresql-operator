@@ -71,7 +71,7 @@ func (r *PGClusterReconciler) cleanupOutdatedBackups(ctx context.Context, cr *v2
 			if (pgBackup.Status.State != v2.BackupSucceeded &&
 				pgBackup.Status.State != v2.BackupFailed &&
 				pgBackup.Status.State != v2.BackupStarting &&
-				pgBackup.Status.State != v2.BackupUnknown) || pgBackup.CompareVersion("2.4.0") < 0 {
+				pgBackup.Status.State != v2.BackupRunning) || pgBackup.CompareVersion("2.4.0") < 0 {
 				continue
 			}
 
