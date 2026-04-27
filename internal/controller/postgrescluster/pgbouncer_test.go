@@ -11,6 +11,7 @@ import (
 
 	"github.com/pkg/errors"
 	"gotest.tools/v3/assert"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -394,7 +395,7 @@ func TestGeneratePGBouncerDeployment(t *testing.T) {
 			cluster := cluster.DeepCopy()
 			cluster.Spec.Proxy = spec
 
-			deploy, specified, err := reconciler.generatePGBouncerDeployment(ctx, cluster, nil, nil, nil)
+			deploy, specified, err := reconciler.generatePGBouncerDeployment(ctx, cluster, nil, nil, nil, nil, nil)
 			assert.NilError(t, err)
 			assert.Assert(t, !specified)
 
@@ -428,7 +429,7 @@ namespace: ns3
 		}
 
 		deploy, specified, err := reconciler.generatePGBouncerDeployment(
-			ctx, cluster, primary, configmap, secret)
+			ctx, cluster, nil, nil, primary, configmap, secret)
 		assert.NilError(t, err)
 		assert.Assert(t, specified)
 
@@ -468,7 +469,7 @@ namespace: ns3
 
 	t.Run("PodSpec", func(t *testing.T) {
 		deploy, specified, err := reconciler.generatePGBouncerDeployment(
-			ctx, cluster, primary, configmap, secret)
+			ctx, cluster, nil, nil, primary, configmap, secret)
 		assert.NilError(t, err)
 		assert.Assert(t, specified)
 
@@ -514,11 +515,80 @@ topologySpreadConstraints:
 			cluster.Spec.DisableDefaultPodScheduling = initialize.Bool(true)
 
 			deploy, specified, err := reconciler.generatePGBouncerDeployment(
-				ctx, cluster, primary, configmap, secret)
+				ctx, cluster, nil, nil, primary, configmap, secret)
 			assert.NilError(t, err)
 			assert.Assert(t, specified)
 
 			assert.Assert(t, deploy.Spec.Template.Spec.TopologySpreadConstraints == nil)
+		})
+	})
+
+	t.Run("PrimaryUIDAnnotation", func(t *testing.T) {
+		// Build a minimal observedInstances with one writable (primary) pod.
+		instances := &observedInstances{
+			forCluster: []*Instance{{
+				Name: "inst-1",
+				Pods: []*corev1.Pod{{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "primary-pod",
+						UID:  "primary-uid-xyz",
+						Annotations: map[string]string{
+							"status": `{"role":"primary"}`,
+						},
+					},
+					Status: corev1.PodStatus{
+						ContainerStatuses: []corev1.ContainerStatus{{
+							Name: naming.ContainerDatabase,
+							State: corev1.ContainerState{
+								Running: new(corev1.ContainerStateRunning),
+							},
+						}},
+					},
+				}},
+				Runner: &appsv1.StatefulSet{},
+			}},
+		}
+
+		t.Run("bootstrap skips writing annotation", func(t *testing.T) {
+			// Fresh install or upgrade path: LastFailoverPrimaryUID is empty.
+			cluster := cluster.DeepCopy()
+			cluster.Status.Proxy.PGBouncer.LastFailoverPrimaryUID = ""
+
+			deploy, _, err := reconciler.generatePGBouncerDeployment(
+				ctx, cluster, instances, nil, primary, configmap, secret)
+			assert.NilError(t, err)
+
+			_, present := deploy.Spec.Template.Annotations[naming.PGBouncerPrimaryUID]
+			assert.Assert(t, !present,
+				"bootstrap path must not write the primary-uid annotation, avoids spurious rollout")
+		})
+
+		t.Run("writes annotation after baseline", func(t *testing.T) {
+			cluster := cluster.DeepCopy()
+			cluster.Status.Proxy.PGBouncer.LastFailoverPrimaryUID = "previous-uid"
+
+			deploy, _, err := reconciler.generatePGBouncerDeployment(
+				ctx, cluster, instances, nil, primary, configmap, secret)
+			assert.NilError(t, err)
+
+			assert.Equal(t, deploy.Spec.Template.Annotations[naming.PGBouncerPrimaryUID], "primary-uid-xyz")
+		})
+
+		t.Run("preserves existing annotation when no primary found", func(t *testing.T) {
+			cluster := cluster.DeepCopy()
+			cluster.Status.Proxy.PGBouncer.LastFailoverPrimaryUID = "previous-uid"
+
+			existing := map[string]string{
+				naming.PGBouncerPrimaryUID: "previous-uid",
+				"user-managed":             "keep-me",
+			}
+
+			deploy, _, err := reconciler.generatePGBouncerDeployment(
+				ctx, cluster, &observedInstances{}, existing, primary, configmap, secret)
+			assert.NilError(t, err)
+
+			assert.Equal(t, deploy.Spec.Template.Annotations[naming.PGBouncerPrimaryUID], "previous-uid")
+			assert.Equal(t, deploy.Spec.Template.Annotations["user-managed"], "keep-me")
 		})
 	})
 }

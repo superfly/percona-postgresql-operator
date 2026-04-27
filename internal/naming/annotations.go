@@ -68,4 +68,10 @@ const (
 	// to a cluster without backups. As usual with the operator, we do not
 	// touch cloud-based backups.
 	AuthorizeBackupRemovalAnnotation = annotationPrefix + "authorizeBackupRemoval"
+
+	// PGBouncerPrimaryUID tracks the Postgres primary pod UID on the pgbouncer
+	// Deployment pod template. When the primary fails over, the value changes
+	// and the Deployment controller performs a rolling restart so new pgbouncer
+	// processes re-resolve the primary's DNS.
+	PGBouncerPrimaryUID = annotationPrefix + "pgbouncer-primary-uid"
 )
