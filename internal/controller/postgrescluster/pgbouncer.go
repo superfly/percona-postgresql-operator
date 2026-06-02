@@ -47,19 +47,13 @@ func (r *Reconciler) reconcilePGBouncer(
 		secret, err = r.reconcilePGBouncerSecret(ctx, cluster, root, service)
 	}
 	if err == nil {
-		err = r.reconcilePGBouncerDeployment(ctx, cluster, primaryCertificate, configmap, secret)
+		err = r.reconcilePGBouncerDeployment(ctx, cluster, instances, primaryCertificate, configmap, secret)
 	}
 	if err == nil {
 		err = r.reconcilePGBouncerPodDisruptionBudget(ctx, cluster)
 	}
 	if err == nil {
 		err = r.reconcilePGBouncerInPostgreSQL(ctx, cluster, instances, secret)
-	}
-	if err == nil {
-		// Stop PgBouncer pods if primary has changed, triggering graceful
-		// shutdown and container restart. New process will do fresh DNS lookup.
-		// This prevents stale connections from routing traffic to a demoted replica.
-		err = r.reconcilePGBouncerReconnect(ctx, cluster, instances)
 	}
 	return err
 }
@@ -355,6 +349,8 @@ func (r *Reconciler) reconcilePGBouncerService(
 // generatePGBouncerDeployment returns an appsv1.Deployment that runs PgBouncer pods.
 func (r *Reconciler) generatePGBouncerDeployment(
 	ctx context.Context, cluster *v1beta1.PostgresCluster,
+	instances *observedInstances,
+	existingTemplateAnnotations map[string]string,
 	primaryCertificate *corev1.SecretProjection,
 	configmap *corev1.ConfigMap, secret *corev1.Secret,
 ) (*appsv1.Deployment, bool, error) {
@@ -381,9 +377,27 @@ func (r *Reconciler) generatePGBouncerDeployment(
 			naming.LabelRole:    naming.RolePGBouncer,
 		},
 	}
-	deploy.Spec.Template.Annotations = naming.Merge(
+	templateAnnotations := naming.Merge(
 		cluster.Spec.Metadata.GetAnnotationsOrNil(),
-		cluster.Spec.Proxy.PGBouncer.Metadata.GetAnnotationsOrNil())
+		cluster.Spec.Proxy.PGBouncer.Metadata.GetAnnotationsOrNil(),
+		existingTemplateAnnotations)
+
+	// Set the primary-uid tracker only after a baseline has been recorded in
+	// status. On first observation (fresh install or upgrade) we skip writing
+	// the annotation so pre-existing pods aren't rolled without cause. A real
+	// failover is detected on the next reconcile when the current primary UID
+	// differs from the annotation already present in the template.
+	if cluster.Status.Proxy.PGBouncer.LastFailoverPrimaryUID != "" && instances != nil {
+		if primaryPod, _ := instances.WritablePod(naming.ContainerDatabase); primaryPod != nil {
+			if templateAnnotations == nil {
+				templateAnnotations = map[string]string{}
+			}
+
+			templateAnnotations[naming.PGBouncerPrimaryUID] = string(primaryPod.UID)
+		}
+	}
+
+	deploy.Spec.Template.Annotations = templateAnnotations
 	deploy.Spec.Template.Labels = naming.Merge(
 		cluster.Spec.Metadata.GetLabelsOrNil(),
 		cluster.Spec.Proxy.PGBouncer.Metadata.GetLabelsOrNil(),
@@ -470,11 +484,19 @@ func (r *Reconciler) generatePGBouncerDeployment(
 // reconcilePGBouncerDeployment writes the Deployment that runs PgBouncer.
 func (r *Reconciler) reconcilePGBouncerDeployment(
 	ctx context.Context, cluster *v1beta1.PostgresCluster,
+	instances *observedInstances,
 	primaryCertificate *corev1.SecretProjection,
 	configmap *corev1.ConfigMap, secret *corev1.Secret,
 ) error {
+	existing := &appsv1.Deployment{ObjectMeta: naming.ClusterPGBouncer(cluster)}
+
+	if err := client.IgnoreNotFound(r.Client.Get(ctx, client.ObjectKeyFromObject(existing), existing)); err != nil {
+		return pkgerrors.WithStack(err)
+	}
+
 	deploy, specified, err := r.generatePGBouncerDeployment(
-		ctx, cluster, primaryCertificate, configmap, secret)
+		ctx, cluster, instances, existing.Spec.Template.Annotations,
+		primaryCertificate, configmap, secret)
 
 	// Set observations whether the deployment exists or not.
 	defer func() {
@@ -520,6 +542,18 @@ func (r *Reconciler) reconcilePGBouncerDeployment(
 	if err == nil {
 		err = pkgerrors.WithStack(r.apply(ctx, deploy))
 	}
+
+	// After a successful apply, record the primary UID as the dedup key for the
+	// failover tracker. If the apply failed, we leave it alone so the next
+	// reconcile retries idempotently; if it succeeded but the status write is
+	// lost, the next reconcile rewrites the same annotation value (SSA no-op)
+	// and advances status then.
+	if err == nil && instances != nil {
+		if primaryPod, _ := instances.WritablePod(naming.ContainerDatabase); primaryPod != nil {
+			cluster.Status.Proxy.PGBouncer.LastFailoverPrimaryUID = string(primaryPod.UID)
+		}
+	}
+
 	return err
 }
 
@@ -581,129 +615,4 @@ func (r *Reconciler) reconcilePGBouncerPodDisruptionBudget(
 		err = pkgerrors.WithStack(r.apply(ctx, pdb))
 	}
 	return err
-}
-
-// pgbouncerPods returns a list of PgBouncer pods for the given cluster.
-func (r *Reconciler) pgbouncerPods(ctx context.Context, cluster *v1beta1.PostgresCluster) (*corev1.PodList, error) {
-	pgbouncerPods := &corev1.PodList{}
-	selector, err := naming.AsSelector(naming.ClusterPGBouncerSelector(cluster))
-	if err != nil {
-		return nil, pkgerrors.WithStack(err)
-	}
-
-	if err := r.Client.List(ctx, pgbouncerPods,
-		client.InNamespace(cluster.Namespace),
-		client.MatchingLabelsSelector{Selector: selector}); err != nil {
-		return nil, pkgerrors.WithStack(err)
-	}
-	return pgbouncerPods, nil
-}
-
-// reconcilePGBouncerReconnect is a sub-reconciler that deletes PgBouncer pods
-// when the primary has changed. This forces PgBouncer to establish new
-// server connections to the correct primary, preventing stale connections
-// from routing traffic to a demoted replica after failover.
-//
-// Delete pod sends a SIGTERM to PgBouncer to trigger SHUTDOWN WAIT_FOR_CLIENTS [1]
-// mode, waiting for clients to gracefully disconnect [2]. This approach was
-// suggested by a PgBouncer maintainer [3] to deal with failovers in Kubernetes.
-//
-// What happens:
-//  1. Kubernetes sends SIGTERM [2] to PgBouncer
-//  2. PgBouncer enters SHUTDOWN WAIT_FOR_CLIENTS mode [1].
-//  3. After Kubernetes grace period (default 30s), SIGKILL is sent if process still hasn't exited
-//  4. Container is terminated and restarted by Kubernetes Deployment controller.
-//  5. New PgBouncer process does fresh DNS lookup → connects to current primary.
-//
-// This approach is more effective than RECONNECT command for session mode with persistent
-// clients (MPG clusters) because RECONNECT waits for clients to disconnect, which never happens
-// for persistent clients. SIGTERM will guarantee termination and restarts after a grace period.
-//
-// [1] https://www.pgbouncer.org/usage.html#shutdown
-// [2] https://www.pgbouncer.org/usage.html#signals
-// [3] https://github.com/pgbouncer/pgbouncer/issues/1361
-func (r *Reconciler) reconcilePGBouncerReconnect(
-	ctx context.Context, cluster *v1beta1.PostgresCluster,
-	instances *observedInstances,
-) error {
-	log := logging.FromContext(ctx)
-
-	// Skip if PgBouncer is disabled
-	if cluster.Spec.Proxy == nil || cluster.Spec.Proxy.PGBouncer == nil {
-		return nil
-	}
-
-	primaryPod, _ := instances.WritablePod(naming.ContainerDatabase)
-	if primaryPod == nil {
-		// We will retry later.
-		log.V(1).Info("No writable instance found, skipping PgBouncer failover signal")
-		return nil
-	}
-
-	currentPrimaryUID := string(primaryPod.UID)
-	lastFailoverUID := cluster.Status.Proxy.PGBouncer.LastFailoverPrimaryUID
-
-	if currentPrimaryUID == lastFailoverUID {
-		// Primary hasn't changed, no need to trigger failover.
-		return nil
-	}
-
-	if lastFailoverUID == "" {
-		// First time seeing this cluster or status field was just added.
-		// Initialize with current primary UID without triggering pod restart.
-		log.V(1).Info("Initializing PgBouncer failover tracking",
-			"currentPrimaryUID", currentPrimaryUID,
-			"currentPrimaryName", primaryPod.Name)
-
-		cluster.Status.Proxy.PGBouncer.LastFailoverPrimaryUID = currentPrimaryUID
-		return nil
-	}
-
-	log.Info("Primary changed, triggering PgBouncer failover signal (SIGTERM)",
-		"previousPrimaryUID", lastFailoverUID,
-		"currentPrimaryUID", currentPrimaryUID,
-		"currentPrimaryName", primaryPod.Name)
-
-	pgbouncerPods, err := r.pgbouncerPods(ctx, cluster)
-	if err != nil {
-		return err
-	}
-
-	var failoverErrs []error
-	successCount := 0
-
-	for _, pod := range pgbouncerPods.Items {
-		if pod.Status.Phase != corev1.PodRunning {
-			continue
-		}
-
-		if err := r.Client.Delete(ctx, &pod); err != nil {
-			log.Error(err, "PgBouncer failover signal: failed to delete pod", "pod", pod.Name)
-			failoverErrs = append(failoverErrs, fmt.Errorf("pod %s: %w", pod.Name, err))
-		} else {
-			log.Info("PgBouncer failover signal: deleted pod for recreation", "pod", pod.Name)
-			successCount++
-		}
-	}
-
-	// Update status only if all pods were successfully stopped.
-	// Partial failures will be retried in the next reconciliation loop.
-	if len(failoverErrs) == 0 {
-		cluster.Status.Proxy.PGBouncer.LastFailoverPrimaryUID = currentPrimaryUID
-	}
-
-	log.Info("PgBouncer failover signal: done",
-		"failed", len(failoverErrs) > 0,
-		"successCount", successCount,
-		"failureCount", len(failoverErrs),
-		"totalPods", len(pgbouncerPods.Items),
-	)
-
-	// Return aggregated errors if any failed
-	if len(failoverErrs) > 0 {
-		return fmt.Errorf("failed to signal %d of %d pgbouncer pods: %w",
-			len(failoverErrs), len(pgbouncerPods.Items), errors.Join(failoverErrs...))
-	}
-
-	return nil
 }
