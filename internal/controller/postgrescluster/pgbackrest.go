@@ -1627,6 +1627,19 @@ func (r *Reconciler) reconcilePGBackRest(ctx context.Context,
 		}
 	}
 
+	// K8SPG/Fly: When automated backups are disabled, the operator still
+	// provisions all backup infrastructure above (repo host, stanza, config and
+	// TLS secrets) but never creates backup Jobs or CronJobs itself. Backups are
+	// expected to be triggered manually against pgBackRest, and replicas
+	// bootstrap via pg_basebackup (pgBackRest is only offered as a Patroni
+	// replica-create method once a replica-create backup has completed, which
+	// never happens here). See config.AutomatedBackupsDisabled.
+	if config.AutomatedBackupsDisabled() {
+		log.V(1).Info("automated backups disabled; skipping scheduled, replica-create and manual backups",
+			"cluster", postgresCluster.Name)
+		return result, nil
+	}
+
 	// reconcile the pgBackRest backup CronJobs
 	requeue := r.reconcileScheduledBackups(ctx, postgresCluster, sa, repoResources.cronjobs)
 	// If the pgBackRest backup CronJob reconciliation function has encountered an error, requeue

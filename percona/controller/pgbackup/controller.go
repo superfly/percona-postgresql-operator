@@ -21,6 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	"github.com/percona/percona-postgresql-operator/internal/config"
 	"github.com/percona/percona-postgresql-operator/internal/logging"
 	"github.com/percona/percona-postgresql-operator/internal/naming"
 	"github.com/percona/percona-postgresql-operator/percona/clientcmd"
@@ -87,6 +88,35 @@ func (r *PGBackupReconciler) Reconcile(ctx context.Context, request reconcile.Re
 			return reconcile.Result{}, errors.Wrap(err, "failed to run finalizers")
 		}
 		return reconcile.Result{RequeueAfter: requeueTimeout}, nil
+	}
+
+	// When automated backups are disabled cluster-wide, the operator never
+	// creates pgBackRest backup Jobs. Fail any pending PerconaPGBackup with a
+	// clear log message instead of leaving it to hang waiting for a Job that
+	// will never be created. Backups must be triggered manually against
+	// pgBackRest directly. See config.AutomatedBackupsDisabled.
+	if config.AutomatedBackupsDisabled() &&
+		pgBackup.Status.State != v2.BackupFailed && pgBackup.Status.State != v2.BackupSucceeded {
+		log.Info("automated backups are disabled (DISABLE_AUTOMATED_BACKUPS=true); "+
+			"not running operator-managed backup. Trigger pgBackRest backups manually.",
+			"pg-backup", pgBackup.Name)
+
+		rerr := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+			bcp := new(v2.PerconaPGBackup)
+
+			if err := r.Client.Get(ctx, client.ObjectKeyFromObject(pgBackup), bcp); err != nil {
+				return errors.Wrap(err, "get PGBackup")
+			}
+
+			bcp.Status.State = v2.BackupFailed
+			return r.Client.Status().Update(ctx, bcp)
+		})
+
+		if rerr != nil {
+			return reconcile.Result{}, errors.Wrap(rerr, "update PGBackup status")
+		}
+
+		return reconcile.Result{}, nil
 	}
 
 	if pgBackup.Status.State != v2.BackupFailed && pgBackup.Status.State != v2.BackupSucceeded {

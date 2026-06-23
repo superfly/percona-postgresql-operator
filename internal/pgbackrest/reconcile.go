@@ -486,6 +486,20 @@ func ReplicaCreateCommand(
 		}
 	}
 
+	// When automated backups are disabled, the operator never runs a
+	// replica-create backup, so ReplicaCreateBackupComplete is never set above.
+	// Still offer pgBackRest as the preferred replica-create method against the
+	// replica-create repo (index 0). Patroni tries this first and automatically
+	// falls back to pg_basebackup when the command fails, e.g. right after the
+	// cluster is created and no backup exists yet. Once backups are taken
+	// manually, NEW replicas restore from the repository instead of streaming a
+	// full copy from the primary. See config.AutomatedBackupsDisabled.
+	//
+	// Ref.: https://patroni.readthedocs.io/en/latest/replica_bootstrap.html#building-replicas
+	if config.AutomatedBackupsDisabled() && len(cluster.Spec.Backups.PGBackRest.Repos) > 0 {
+		return command(cluster.Spec.Backups.PGBackRest.Repos[0].Name)
+	}
+
 	return nil
 }
 
