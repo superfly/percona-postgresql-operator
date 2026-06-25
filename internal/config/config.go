@@ -19,6 +19,19 @@ func defaultFromEnv(value, key string) string {
 	return value
 }
 
+// AutomatedBackupsDisabled reports whether operator-driven pgBackRest backups
+// (manual, scheduled, and replica-create) are disabled cluster-wide via the
+// DISABLE_AUTOMATED_BACKUPS=true environment variable.
+//
+// When disabled, the operator still provisions all backup infrastructure (the
+// dedicated repo host, stanza, pgBackRest config and TLS secrets) so that
+// backups can be triggered manually against pgBackRest directly. Replicas
+// bootstrap via pg_basebackup, since pgBackRest is only offered as a Patroni
+// replica-create method once a replica-create backup has completed.
+func AutomatedBackupsDisabled() bool {
+	return os.Getenv("DISABLE_AUTOMATED_BACKUPS") == "true"
+}
+
 // FetchKeyCommand returns the fetch_key_cmd value stored in the encryption_key_command
 // variable used to enable TDE.
 func FetchKeyCommand(spec *v1beta1.PostgresClusterSpec) string {

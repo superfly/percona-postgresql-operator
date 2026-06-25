@@ -37,6 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	"github.com/percona/percona-postgresql-operator/internal/config"
 	"github.com/percona/percona-postgresql-operator/internal/controller/runtime"
 	"github.com/percona/percona-postgresql-operator/internal/logging"
 	"github.com/percona/percona-postgresql-operator/internal/naming"
@@ -279,8 +280,13 @@ func (r *PGClusterReconciler) Reconcile(ctx context.Context, request reconcile.R
 		return reconcile.Result{}, errors.Wrap(err, "reconcile custom extensions")
 	}
 
-	if err := r.reconcileScheduledBackups(ctx, cr); err != nil {
-		return reconcile.Result{}, errors.Wrap(err, "reconcile scheduled backups")
+	// When automated backups are disabled cluster-wide, the operator does not
+	// register scheduled backup cron jobs. Backups are triggered manually
+	// against pgBackRest directly. See config.AutomatedBackupsDisabled.
+	if !config.AutomatedBackupsDisabled() {
+		if err := r.reconcileScheduledBackups(ctx, cr); err != nil {
+			return reconcile.Result{}, errors.Wrap(err, "reconcile scheduled backups")
+		}
 	}
 
 	if cr.Spec.Pause != nil && *cr.Spec.Pause {
