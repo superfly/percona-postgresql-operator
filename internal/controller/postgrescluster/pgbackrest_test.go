@@ -3031,6 +3031,67 @@ func TestGenerateRestoreJobIntent(t *testing.T) {
 	}
 }
 
+func TestGenerateRestoreJobIntentCustomSidecars(t *testing.T) {
+	_, cc := setupKubernetes(t)
+	require.ParallelCapacity(t, 0)
+
+	r := Reconciler{Client: cc}
+
+	secretName := "my-pgbackrest-env-secret" // #nosec G101
+	cluster := &v1beta1.PostgresCluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "test",
+			Labels: map[string]string{naming.LabelVersion: "2.5.0"},
+		},
+		Spec: v1beta1.PostgresClusterSpec{
+			Backups: v1beta1.Backups{
+				PGBackRest: v1beta1.PGBackRestArchive{
+					RepoHost: &v1beta1.PGBackRestRepoHost{
+						EnvFromSecret: &secretName,
+						InitContainers: []corev1.Container{
+							{Name: "one-shot-init"},
+						},
+						Containers: []corev1.Container{
+							{Name: "credential-refresher"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	job := &batchv1.Job{}
+	err := r.generateRestoreJobIntent(cluster, "", "",
+		[]string{}, []corev1.VolumeMount{}, []corev1.Volume{},
+		&v1beta1.PostgresClusterDataSource{}, job)
+	assert.NilError(t, err)
+
+	initContainers := job.Spec.Template.Spec.InitContainers
+	if assert.Check(t, len(initContainers) == 2, "expected 2 init containers, got %d", len(initContainers)) {
+		// The sidecar-turned-init-container must come first so credentials it
+		// provides are available to the one-shot init container that follows.
+		sidecar := initContainers[0]
+		assert.Equal(t, sidecar.Name, "credential-refresher")
+		if assert.Check(t, sidecar.RestartPolicy != nil, "expected sidecar RestartPolicy to be set") {
+			assert.Equal(t, *sidecar.RestartPolicy, corev1.ContainerRestartPolicyAlways)
+		}
+		if assert.Check(t, len(sidecar.EnvFrom) == 1) {
+			assert.Equal(t, sidecar.EnvFrom[0].SecretRef.Name, secretName)
+		}
+
+		oneShot := initContainers[1]
+		assert.Equal(t, oneShot.Name, "one-shot-init")
+		assert.Assert(t, oneShot.RestartPolicy == nil,
+			"one-shot init containers must not be marked as native sidecars")
+		if assert.Check(t, len(oneShot.EnvFrom) == 1) {
+			assert.Equal(t, oneShot.EnvFrom[0].SecretRef.Name, secretName)
+		}
+	}
+
+	// The main restore container is unaffected.
+	assert.Assert(t, len(job.Spec.Template.Spec.Containers) == 1)
+}
+
 func TestObserveRestoreEnv(t *testing.T) {
 	ctx := context.Background()
 	_, tClient := setupKubernetes(t)
