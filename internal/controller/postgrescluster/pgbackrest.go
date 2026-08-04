@@ -1437,27 +1437,31 @@ func (r *Reconciler) generateRestoreJobIntent(cluster *v1beta1.PostgresCluster,
 		job.Spec.Template.Spec.InitContainers = append(job.Spec.Template.Spec.InitContainers, initContainers...)
 	}
 
-	// Add sidecars from RepoHost.Containers to the restore job
-	// if repoHost != nil && repoHost.EnvFromSecret != nil && repoHost.Containers != nil {
-	// 	containers := make([]corev1.Container, 0, len(repoHost.Containers))
+	if repoHost != nil && repoHost.EnvFromSecret != nil && repoHost.Containers != nil {
+		sidecars := make([]corev1.Container, 0, len(repoHost.Containers))
 
-	// 	// Add the envFrom reference to each sidecar container
-	// 	for _, c := range repoHost.Containers {
-	// 		envFrom := corev1.EnvFromSource{
-	// 			SecretRef: &corev1.SecretEnvSource{
-	// 				LocalObjectReference: corev1.LocalObjectReference{
-	// 					Name: *repoHost.EnvFromSecret,
-	// 				},
-	// 			},
-	// 		}
-	// 		c.EnvFrom = append(c.EnvFrom, envFrom)
+		// Add the envFrom reference to each sidecar container and mark it as a
+		// native sidecar so it runs alongside, not sequentially before, the
+		// rest of the pod.
+		for _, c := range repoHost.Containers {
+			envFrom := corev1.EnvFromSource{
+				SecretRef: &corev1.SecretEnvSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: *repoHost.EnvFromSecret,
+					},
+				},
+			}
+			c.EnvFrom = append(c.EnvFrom, envFrom)
+			c.RestartPolicy = initialize.Pointer(corev1.ContainerRestartPolicyAlways)
 
-	// 		containers = append(containers, c)
-	// 	}
+			sidecars = append(sidecars, c)
+		}
 
-	// 	// Add the sidecars to the job's containers
-	// 	job.Spec.Template.Spec.Containers = append(job.Spec.Template.Spec.Containers, containers...)
-	// }
+		// Sidecars must be started before the one-shot init containers and the
+		// main container so that credentials they provide are available to
+		// both, so they are prepended rather than appended.
+		job.Spec.Template.Spec.InitContainers = append(sidecars, job.Spec.Template.Spec.InitContainers...)
+	}
 
 	// Set the image pull secrets, if any exist.
 	// This is set here rather than using the service account due to the lack
